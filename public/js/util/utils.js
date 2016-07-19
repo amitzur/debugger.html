@@ -3,8 +3,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-"use strict";
+
 const co = require("co");
+const { isDevelopment } = require("../../../config/feature");
 
 function asPaused(client, func) {
   if (client.state != "paused") {
@@ -133,6 +134,14 @@ function compose(...funcs) {
   };
 }
 
+function log() {
+  if (!isDevelopment()) {
+    return;
+  }
+
+  console.log.apply(console, ["[log]", ...arguments]);
+}
+
 module.exports = {
   asPaused,
   handleError,
@@ -143,5 +152,6 @@ module.exports = {
   entries,
   toObject,
   mapObject,
-  compose
+  compose,
+  log
 };

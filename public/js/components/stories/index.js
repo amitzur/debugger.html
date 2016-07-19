@@ -1,5 +1,3 @@
-"use strict";
-
 require("./accordion");
 require("./Breakpoints");
 require("./Scopes");
@@ -8,3 +6,4 @@ require("./Frames");
 require("./Reps");
 require("./Editor");
 require("./SourceTabs");
+require("./Autocomplete");

@@ -1,10 +1,10 @@
-"use strict";
-
 /* eslint-disable */
 
 const { connect } = require("../lib/chrome-remote-debug-protocol");
 const defer = require("../lib/devtools/shared/defer");
 const { Tab } = require("../types");
+const { isEnabled, getValue } = require("../../../config/feature");
+const { networkRequest } = require("../util/networkRequest");
 const { setupCommands, clientCommands } = require("./chrome/commands");
 const { setupEvents, clientEvents } = require("./chrome/events");
 
@@ -39,10 +39,15 @@ function createTabs(tabs) {
 
 function connectClient() {
   const deferred = defer();
-  fetch("/chrome-tabs").then(res => {
-    res.json().then((body) => {
-      deferred.resolve(createTabs(body));
-    });
+
+  if(!isEnabled("chrome.debug")) {
+    return deferred.resolve(createTabs([]))
+  }
+
+  const webSocketPort = getValue("chrome.webSocketPort");
+  const url = `http://localhost:${webSocketPort}/json/list`;
+  networkRequest(url).then(body => {
+    deferred.resolve(createTabs(body))
   });
 
   return deferred.promise;

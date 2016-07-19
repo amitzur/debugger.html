@@ -1,16 +1,16 @@
-"use strict";
-
 const React = require("react");
 const ImPropTypes = require("react-immutable-proptypes");
 const { bindActionCreators } = require("redux");
 const { connect } = require("react-redux");
 const CodeMirror = require("codemirror");
 const { DOM: dom, PropTypes } = React;
+const { debugGlobal } = require("../util/debug");
+const { isFirefox } = require("../../../config/feature");
 
 const {
   getSourceText, getBreakpointsForSource,
-  getSelectedSource, getSelectedSourceOpts,
-  getSelectedFrame, makeLocationId
+  getSelectedSource, getSelectedFrame,
+  makeLocationId
 } = require("../selectors");
 const actions = require("../actions");
 const { alignLine, onWheel, resizeBreakpointGutter } = require("../util/editor");
@@ -49,15 +49,16 @@ const Editor = React.createClass({
       gutters: ["breakpoints"]
     });
 
-    // NOTE: only used for testing
-    window.cm = this.editor;
+    debugGlobal("cm", this.editor);
 
     this.editor.on("gutterClick", this.onGutterClick);
 
-    this.editor.getScrollerElement().addEventListener(
-      "wheel",
-      ev => onWheel(this.editor, ev)
-    );
+    if (isFirefox()) {
+      this.editor.getScrollerElement().addEventListener(
+        "wheel",
+        ev => onWheel(this.editor, ev)
+      );
+    }
 
     resizeBreakpointGutter(this.editor);
   },
@@ -108,8 +109,7 @@ const Editor = React.createClass({
     // Only reset the editor text if the source has changed.
     // + Resetting the text will remove the breakpoints.
     // + Comparing the source text is probably inneficient.
-    if (!oldSourceText ||
-        newSourceText.get("text") != oldSourceText.get("text")) {
+    if (newSourceText.get("text") != this.editor.getValue()) {
       this.editor.setValue(newSourceText.get("text"));
     }
 
@@ -168,7 +168,6 @@ module.exports = connect(
 
     return {
       selectedSource: selectedSource,
-      selectedSourceOpts: getSelectedSourceOpts(state),
       sourceText: getSourceText(state, selectedId),
       breakpoints: getBreakpointsForSource(state, selectedId),
       selectedFrame: getSelectedFrame(state)

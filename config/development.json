@@ -1,15 +1,20 @@
 {
-  "development": true,
-  "logging": true,
-  "clientLogging": false,
+  "environment": "development",
+  "logging": {
+    "client": false,
+    "firefoxProxy": false
+  },
   "features": {
-    "tabs": true
+    "tabs": true,
+    "sourceMaps": true
   },
   "chrome": {
     "debug": false,
     "webSocketPort": 9222
   },
   "firefox": {
-    "webSocketPort": 9000
+    "proxyPort": 9000,
+    "webSocketConnection": false,
+    "webSocketPort": 6080
   }
 }

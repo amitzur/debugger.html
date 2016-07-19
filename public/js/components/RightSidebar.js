@@ -1,5 +1,3 @@
-"use strict";
-
 const React = require("react");
 const { DOM: dom } = React;
 const { connect } = require("react-redux");
@@ -46,9 +44,6 @@ function RightSidebar({ resume, command, breakOnNext,
 
         debugBtn(() => command({ type: "disableBreakpoints" }),
                  "disableBreakpoints", "disabled"),
-        debugBtn(() => command({ type: "blackBox" }), "blackBox", "disabled"),
-        debugBtn(() => command({ type: "prettyPrint" }),
-                 "prettyPrint", "disabled"),
         debugBtn(() => command({ type: "subSettings" }), "subSettings")
       ),
 

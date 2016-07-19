@@ -3,7 +3,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-"use strict";
 
 exports.UPDATE_EVENT_BREAKPOINTS = "UPDATE_EVENT_BREAKPOINTS";
 exports.FETCH_EVENT_LISTENERS = "FETCH_EVENT_LISTENERS";
@@ -18,6 +17,7 @@ exports.DISABLE_BREAKPOINT = "DISABLE_BREAKPOINT";
 exports.SET_BREAKPOINT_CONDITION = "SET_BREAKPOINT_CONDITION";
 
 exports.ADD_SOURCE = "ADD_SOURCE";
+exports.LOAD_SOURCE_MAP = "LOAD_SOURCE_MAP";
 exports.CLOSE_TAB = "CLOSE_TAB";
 exports.ADD_SOURCES = "ADD_SOURCES";
 exports.LOAD_SOURCE_TEXT = "LOAD_SOURCE_TEXT";

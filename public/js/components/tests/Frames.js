@@ -1,5 +1,3 @@
-"use strict";
-
 const Frames = require("../Frames");
 const { renderComponent } = require("../test-utils");
 
@@ -32,9 +30,12 @@ describe("Frames", function() {
 
     const $el = renderComponent(Frames, "todomvcUpdateOnEnter");
     const frames = getFrames($el);
-    expect(frames.length).to.equal(3);
+    expect(frames.length).to.equal(6);
     expect(getFrameTitle(frames[0])).to.equal("app.TodoView<.updateOnEnter");
-    expect(getFrameLocation(frames[0])).to.equal("todo-view.js");
+    expect(getFrameLocation(frames[0])).to.equal("todo-view.js: 113");
+    expect(getFrameTitle(frames[3])).to.equal("sendKey");
+    // lastChild is the firstChild, there is no empty div present
+    expect(getFrameLocation(frames[3])).to.equal("sendKey");
   });
 
   it("Nested Closure", function() {
@@ -44,8 +45,8 @@ describe("Frames", function() {
 
     const $el = renderComponent(Frames, "pythagorean");
     const frames = getFrames($el);
-    expect(frames.length).to.equal(3);
+    expect(frames.length).to.equal(5);
     expect(getFrameTitle(frames[0])).to.equal("pythagorean");
-    expect(getFrameLocation(frames[0])).to.equal("pythagorean.js");
+    expect(getFrameLocation(frames[0])).to.equal("pythagorean.js: 11");
   });
 });

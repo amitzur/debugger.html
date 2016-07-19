@@ -1,5 +1,3 @@
-"use strict";
-
 const t = require("tcomb");
 
 const Tab = t.struct({
@@ -12,7 +10,9 @@ const Tab = t.struct({
 
 const Source = t.struct({
   id: t.String,
-  url: t.union([t.String, t.Nil])
+  url: t.union([t.String, t.Nil]),
+  isPrettyPrinted: t.Boolean,
+  sourceMapURL: t.union([t.String, t.Nil])
 }, "Source");
 
 const Location = t.struct({

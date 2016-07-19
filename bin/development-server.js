@@ -10,21 +10,18 @@ const express = require("express");
 const webpackDevMiddleware = require("webpack-dev-middleware");
 const webpackHotMiddleware = require("webpack-hot-middleware");
 const http = require("http");
+const _ = require("lodash");
 
-// Improve the first run experience: copy the local sample config to a
-// local file so webpack can find it. We don't have to do this, but
-// otherwise webpack prints a warning that scares people.
-const localConfigPath = path.join(__dirname, "../config/local.json")
-if(!fs.existsSync(localConfigPath)) {
-  const defaultConfig = fs.readFileSync(
-    path.join(__dirname, "../config/local.sample.json")
-  );
-  fs.writeFileSync(localConfigPath, defaultConfig);
+// Setup Config
+const getConfig = require("../config/config").getConfig;
+const feature = require("../config/feature");
+const config = getConfig();
+feature.setConfig(config);
+
+if (!feature.isEnabled("firefox.webSocketConnection")) {
+  const firefoxProxy = require("./firefox-proxy");
+  firefoxProxy({ logging: feature.isEnabled("logging.firefoxProxy") });
 }
-
-const features = require("../config/feature");
-
-require("./firefox-proxy");
 
 function httpGet(url, onResponse) {
   return http.get(url, (response) => {
@@ -41,17 +38,16 @@ function httpGet(url, onResponse) {
 const app = express();
 
 // Webpack middleware
-
-const config = require("../webpack.config");
-const compiler = webpack(config);
+const webpackConfig = require("../webpack.config");
+const compiler = webpack(webpackConfig);
 
 app.use(webpackDevMiddleware(compiler, {
-  publicPath: config.output.publicPath,
+  publicPath: webpackConfig.output.publicPath,
   noInfo: true,
   stats: { colors: true }
 }));
 
-if(features.isEnabled("hotReloading")) {
+if(feature.isEnabled("hotReloading")) {
   app.use(webpackHotMiddleware(compiler));
 }
 
@@ -61,31 +57,22 @@ app.use(express.static("public/js/test/examples"));
 app.use(express.static("public"));
 
 // Routes
-
 app.get("/", function(req, res) {
   res.sendFile(path.join(__dirname, "../index.html"));
 });
 
-app.get("/chrome-tabs", function(req, res) {
-  if(features.isEnabled("chrome.debug")) {
-    const webSocketPort = features.getValue("chrome.webSocketPort");
-    const url = `http://localhost:${webSocketPort}/json/list`;
+app.get("/get", function(req, res) {
+  const httpReq = httpGet(
+    req.query.url,
+    body => res.json(JSON.parse(body))
+  );
 
-    const tabRequest = httpGet(url, body => res.json(JSON.parse(body)));
-
-    tabRequest.on('error', function (err) {
-      if (err.code == "ECONNREFUSED") {
-        console.log("Failed to connect to chrome");
-      }
-    });
-  }
-  else {
-    res.json([]);
-  }
+  httpReq.on('error', function (err) {
+    res.status(500).send(err.code);
+  });
 })
 
 // Listen
-
 app.listen(8000, "localhost", function(err, result) {
   if (err) {
     console.log(err);

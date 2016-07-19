@@ -1,8 +1,7 @@
-"use strict";
 const React = require("react");
 const { createElement, createFactory } = React;
 const { renderComponent, storiesOf } = require("./utils");
-const { setConfig, getConfig } = require("../../../../config/feature");
+const { getConfig, setConfig } = require("../../../../config/feature");
 
 const SourceTabs = require("../SourceTabs");
 

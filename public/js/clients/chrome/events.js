@@ -1,5 +1,3 @@
-"use strict";
-
 const { Source, Location, Frame } = require("../../types");
 
 let actions;
@@ -12,7 +10,12 @@ function scriptParsed(scriptId, url, startLine, startColumn,
              endLine, endColumn, executionContextId, hash,
              isContentScript, isInternalScript, isLiveEdit,
              sourceMapURL, hasSourceURL, deprecatedCommentWasUsed) {
-  actions.newSource(Source({ id: scriptId, url: url }));
+  actions.newSource(Source({
+    id: scriptId,
+    url,
+    sourceMapURL,
+    isPrettyPrinted: false
+  }));
 }
 
 function scriptFailedToParse() {}

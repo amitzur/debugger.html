@@ -1,5 +1,3 @@
-"use strict";
-
 const React = require("react");
 const { DOM: dom, PropTypes } = React;
 const ImPropTypes = require("react-immutable-proptypes");
@@ -16,6 +14,8 @@ const Sources = React.createClass({
     sources: ImPropTypes.map.isRequired,
     selectSource: PropTypes.func.isRequired
   },
+
+  displayName: "Sources",
 
   render() {
     const { sources, selectSource } = this.props;

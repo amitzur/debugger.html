@@ -1,5 +1,3 @@
-"use strict";
-
 const React = require("react");
 const classnames = require("classnames");
 const ManagedTree = React.createFactory(require("./util/ManagedTree"));
@@ -74,6 +72,29 @@ const ObjectInspector = React.createClass({
     return {};
   },
 
+  makeNodesForProperties(objProps, parentPath) {
+    const { ownProperties, prototype } = objProps;
+
+    const nodes = Object.keys(ownProperties).filter(name => {
+      // Ignore non-concrete values like getters and setters
+      // for now by making sure we have a value.
+      return "value" in ownProperties[name];
+    }).map(name => {
+      return createNode(name, parentPath + "/" + name, ownProperties[name]);
+    });
+
+    // Add the prototype if it exists and is not null
+    if (prototype && prototype.type !== "null") {
+      nodes.push(createNode(
+        "__proto__",
+        parentPath + "/__proto__",
+        { value: prototype }
+      ));
+    }
+
+    return nodes;
+  },
+
   getChildren(item) {
     const { getObjectProperties } = this.props;
     const obj = item.contents;
@@ -95,14 +116,11 @@ const ObjectInspector = React.createClass({
         return this.actorCache[actor];
       }
 
-      const loaded = getObjectProperties(actor);
-      if (loaded) {
-        this.actorCache[actor] = loaded.map(child => {
-          // This is where the path is constructed.
-          return createNode(child[0], item.path + "/" + child[0], child[1]);
-        });
-
-        return this.actorCache[actor];
+      const loadedProps = getObjectProperties(actor);
+      if (loadedProps) {
+        const children = this.makeNodesForProperties(loadedProps, item.path);
+        this.actorCache[actor] = children;
+        return children;
       }
       return [];
     }

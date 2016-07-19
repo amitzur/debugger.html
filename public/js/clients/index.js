@@ -1,8 +1,7 @@
-"use strict";
-
 const { Task } = require("../util/task");
 const firefox = require("./firefox");
 const chrome = require("./chrome");
+const { debugGlobal } = require("../util/debug");
 
 let clientType;
 function getClient() {
@@ -37,7 +36,9 @@ function startDebuggingTab(targetEnv, tabId, actions) {
     targetEnv.initPage(actions);
 
     clientType = targetEnv === firefox ? "firefox" : "chrome";
-    window.client = targetEnv.clientCommands;
+    debugGlobal("client", targetEnv.clientCommands);
+
+    return tabs;
   });
 }
 
@@ -47,7 +48,7 @@ function connectClients() {
     chrome.connectClient()
   ]).then(results => {
     const [firefoxTabs, chromeTabs] = results;
-    return firefoxTabs.concat(chromeTabs);
+    return firefoxTabs.concat(chromeTabs).filter(i => i);
   });
 }
 

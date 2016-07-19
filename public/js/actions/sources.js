@@ -1,16 +1,21 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-"use strict";
 
 const defer = require("devtools/shared/defer");
 const { PROMISE } = require("../util/redux/middleware/promise");
 const { Task } = require("../util/task");
 const { isJavaScript } = require("../util/source");
+const { networkRequest } = require("../util/networkRequest");
 
-const { getSource, getSourceText } = require("../selectors");
+const { getSource, getSourceText,
+        getSourceMap, getSourceMapURL } = require("../selectors");
 const constants = require("../constants");
 const Prefs = require("../prefs");
+const invariant = require("invariant");
+const { isEnabled } = require("../../../config/feature");
+const { setSourceMap, createOriginalSources,
+        isOriginal, getOriginalSource } = require("../util/source-map");
 
 /**
  * Throttles source dispatching to reduce rendering churn.
@@ -34,12 +39,40 @@ function queueSourcesDispatch(dispatch) {
  * Handler for the debugger client's unsolicited newSource notification.
  */
 function newSource(source) {
-  return ({ dispatch }) => {
+  return ({ dispatch, getState }) => {
+    if (isEnabled("features.sourceMaps") && source.sourceMapURL) {
+      dispatch(loadSourceMap(source));
+    }
+
     // We don't immediately dispatch the source because several
     // thousand may come in at the same time and we want to batch
     // rendering.
     newSources.push(source);
     queueSourcesDispatch(dispatch);
+  };
+}
+
+function loadSourceMap(generatedSource) {
+  return ({ dispatch, getState }) => {
+    let sourceMap = getSourceMap(getState(), generatedSource.id);
+    if (sourceMap) {
+      return;
+    }
+
+    dispatch({
+      type: constants.LOAD_SOURCE_MAP,
+      source: generatedSource,
+      [PROMISE]: (async function () {
+        const sourceMapURL = getSourceMapURL(getState(), generatedSource);
+        sourceMap = await networkRequest(sourceMapURL);
+
+        setSourceMap(generatedSource, sourceMap);
+        createOriginalSources(generatedSource)
+          .forEach(s => dispatch(newSource(s)));
+
+        return { sourceMap };
+      })()
+    });
   };
 }
 
@@ -110,8 +143,9 @@ function blackbox(source, shouldBlackBox) {
  *          A promise that resolves to [aSource, prettyText] or rejects to
  *          [aSource, error].
  */
-function togglePrettyPrint(source) {
+function togglePrettyPrint(id) {
   return ({ dispatch, getState, client }) => {
+    const source = getSource(getState(), id).toJS();
     const wantPretty = !source.isPrettyPrinted;
 
     return dispatch({
@@ -123,9 +157,11 @@ function togglePrettyPrint(source) {
         // Only attempt to pretty print JavaScript sources.
         const sourceText = getSourceText(getState(), source.id).toJS();
         const contentType = sourceText ? sourceText.contentType : null;
-        if (!isJavaScript(source.url, contentType)) {
-          throw new Error("Can't prettify non-javascript files.");
-        }
+
+        invariant(
+          isJavaScript(source.url, contentType),
+          "Can't prettify non-javascript files."
+        );
 
         if (wantPretty) {
           response = yield client.prettyPrint(source.id, Prefs.editorTabSize);
@@ -168,7 +204,9 @@ function loadSourceText(source) {
         // let histogram = Services.telemetry.getHistogramById(histogramId);
         // let startTime = Date.now();
 
-        const response = yield client.sourceContents(source.id);
+        const response = isOriginal(source)
+          ? yield getOriginalSource(source, getState, dispatch, loadSourceText)
+          : yield client.sourceContents(source.id);
 
         // histogram.add(Date.now() - startTime);
 

@@ -8,8 +8,16 @@ const ExtractTextPlugin = require("extract-text-webpack-plugin");
 const features = require("./config/feature");
 const isDevelopment = features.isDevelopment;
 const isEnabled = features.isEnabled;
+const getConfig = require("./config/config").getConfig;
 
-let config = {
+const node_env = process.env.NODE_ENV || "development";
+
+const defaultBabelPlugins = [
+  "transform-flow-strip-types",
+  "transform-async-to-generator"
+];
+
+let webpackConfig = {
   entry: ["./public/js/main.js"],
   devtool: "source-map",
   output: {
@@ -28,53 +36,68 @@ let config = {
   module: {
     loaders: [
       { test: /\.json$/,
-        loader: "json" }
+        loader: "json" },
+      { test: /\.js$/,
+        exclude: /(node_modules|bower_components)/,
+        loaders: [
+          "babel?" +
+            defaultBabelPlugins.map(p => "plugins[]=" + p) +
+            "&ignore=public/js/lib"
+        ],
+        isJavaScriptLoader: true
+      }
     ]
   },
-  plugins: []
+  plugins: [
+    new webpack.DefinePlugin({
+      "process.env": {
+        NODE_ENV: JSON.stringify(node_env),
+      },
+      "DebuggerTarget": JSON.stringify("local"),
+      "DebuggerConfig": JSON.stringify(getConfig())
+    })
+  ]
 };
 
 if (isDevelopment()) {
-  config.module.loaders.push({
+  webpackConfig.module.loaders.push({
     test: /\.css$/,
     loader: "style!css"
   });
 
   if (isEnabled("hotReloading")) {
-    config.entry.push("webpack-hot-middleware/client");
+    webpackConfig.entry.push("webpack-hot-middleware/client");
 
-    config.plugins = config.plugins.concat([
+    webpackConfig.plugins = webpackConfig.plugins.concat([
       new webpack.HotModuleReplacementPlugin(),
       new webpack.NoErrorsPlugin()
     ]);
 
-    config.module.loaders.push({
-      test: /\.js$/,
-      include: path.join(__dirname, "./public/js"),
-      loader: "react-hot"
+    webpackConfig.module.loaders.forEach(spec => {
+      if(spec.isJavaScriptLoader) {
+        spec.loaders.unshift("react-hot");
+      }
     });
   }
-
 } else {
   // Extract CSS into a single file
-  config.module.loaders.push({
+  webpackConfig.module.loaders.push({
     test: /\.css$/,
     loader: ExtractTextPlugin.extract("style-loader", "css-loader")
   });
-  config.module.plugins.push(new ExtractTextPlugin("styles.css"));
+
+  webpackConfig.plugins.push(new ExtractTextPlugin("styles.css"));
 }
 
 // NOTE: This is only needed to fix a bug with chrome devtools' debugger and
 // destructuring params https://github.com/jlongster/debugger.html/issues/67
 if (isEnabled("transformParameters")) {
-  config.module.loaders.push({
-    test: /\.js$/,
-    exclude: /(node_modules|bower_components)/,
-    loader: "babel",
-    query: {
-      plugins: ["transform-es2015-parameters"]
+  webpackConfig.module.loaders.forEach(spec => {
+    if(spec.isJavaScriptLoader) {
+      const idx = spec.loaders.findIndex(loader => loader.includes("babel"));
+      spec.loaders[idx] += "&plugins[]=transform-es2015-parameters";
     }
   });
 }
 
-module.exports = config;
+module.exports = webpackConfig;

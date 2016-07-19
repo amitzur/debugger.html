@@ -1,5 +1,3 @@
-"use strict";
-
 const { Source, Frame, Location } = require("../../types");
 
 const CALL_STACK_PAGE_SIZE = 25;
@@ -60,12 +58,15 @@ function resumed(_, packet) {
 function newSource(_, packet) {
   const { source } = packet;
 
-  if (NEW_SOURCE_IGNORED_URLS.indexOf(source.url) === -1) {
-    actions.newSource(Source({
-      id: source.actor,
-      url: source.url
-    }));
+  if (NEW_SOURCE_IGNORED_URLS.indexOf(source.url) > -1) {
+    return;
   }
+  actions.newSource(Source({
+    id: source.actor,
+    url: source.url,
+    isPrettyPrinted: source.isPrettyPrinted,
+    sourceMapURL: source.sourceMapURL
+  }));
 }
 
 const clientEvents = {

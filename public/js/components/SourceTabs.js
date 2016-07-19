@@ -1,5 +1,3 @@
-"use strict";
-
 const React = require("react");
 const { DOM: dom, PropTypes } = React;
 const ImPropTypes = require("react-immutable-proptypes");
@@ -91,6 +89,10 @@ const SourceTabs = React.createClass({
    * finding the source tabs who have wrapped and are not on the top row.
    */
   updateHiddenSourceTabs(sourceTabs) {
+    if (!this.refs.sourceTabs) {
+      return;
+    }
+
     const sourceTabEls = this.refs.sourceTabs.children;
     const hiddenSourceTabs = getHiddenTabs(sourceTabs, sourceTabEls);
 
@@ -162,7 +164,7 @@ const SourceTabs = React.createClass({
     const { selectedSource, selectSource, closeTab } = this.props;
     const url = source && source.get("url");
     const filename = getFilename(url);
-    const active = source.equals(selectedSource);
+    const active = source.get("id") == selectedSource.get("id");
 
     function onClickClose(ev) {
       ev.stopPropagation();
@@ -188,7 +190,7 @@ const SourceTabs = React.createClass({
 
   render() {
     if (!isEnabled("features.tabs")) {
-      return "";
+      return dom.div({ className: "source-header" });
     }
 
     return dom.div({ className: "source-header" },

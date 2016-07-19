@@ -1,5 +1,4 @@
 /* global window, document */
-"use strict";
 
 const { bindActionCreators, combineReducers } = require("redux");
 const { Provider } = require("react-redux");
@@ -8,16 +7,16 @@ const React = require("react");
 
 const DevToolsUtils = require("devtools-sham/shared/DevToolsUtils");
 const AppConstants = require("devtools-sham/sham/appconstants").AppConstants;
-const { isEnabled } = require("../../config/feature");
+const { injectGlobals } = require("./util/debug");
+const { log } = require("./util/utils");
+const { isEnabled, isFirefoxPanel, isDevelopment } = require("../../config/feature");
 
 // Set various flags before requiring app code.
-if (isEnabled("clientLogging")) {
+if (isEnabled("logging.client")) {
   DevToolsUtils.dumpn.wantLogging = true;
 }
 
-if (isEnabled("development")) {
-  AppConstants.DEBUG_JS_MODULES = true;
-}
+log("Debugger bootstrapping");
 
 const { getClient, connectClients, startDebugging } = require("./clients");
 const firefox = require("./clients/firefox");
@@ -37,10 +36,10 @@ const createStore = configureStore({
 const store = createStore(combineReducers(reducers));
 const actions = bindActionCreators(require("./actions"), store.dispatch);
 
-// global for debugging purposes only!
-window.store = store;
-window.injectDebuggee = require("./test/utils/debuggee");
-window.serializeStore = () => JSON.parse(JSON.stringify(store.getState()));
+if (isDevelopment()) {
+  AppConstants.DEBUG_JS_MODULES = true;
+  injectGlobals({ store });
+}
 
 function renderRoot(component) {
   const mount = document.querySelector("#mount");
@@ -79,10 +78,12 @@ function getTargetFromQuery() {
 
 const connTarget = getTargetFromQuery();
 if (connTarget) {
-  startDebugging(connTarget, actions).then(() => {
+  startDebugging(connTarget, actions).then((tabs) => {
+    actions.newTabs(tabs);
+    actions.selectTab({ id: connTarget.param });
     renderRoot(App);
   });
-} else if (process.env.NODE_ENV === "DEVTOOLS_PANEL") {
+} else if (isFirefoxPanel()) {
   // The toolbox already provides the tab to debug.
   module.exports = {
     setThreadClient: firefox.setThreadClient,
