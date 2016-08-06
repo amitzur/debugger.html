@@ -7,10 +7,11 @@ const webpack = require("webpack");
 const ExtractTextPlugin = require("extract-text-webpack-plugin");
 const features = require("./config/feature");
 const isDevelopment = features.isDevelopment;
+const isFirefoxPanel = features.isFirefoxPanel;
 const isEnabled = features.isEnabled;
 const getConfig = require("./config/config").getConfig;
 
-const node_env = process.env.NODE_ENV || "development";
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 const defaultBabelPlugins = [
   "transform-flow-strip-types",
@@ -18,19 +19,31 @@ const defaultBabelPlugins = [
 ];
 
 let webpackConfig = {
-  entry: ["./public/js/main.js"],
+  entry: {
+    bundle: ["./public/js/main.js"],
+    "source-map-worker": "./public/js/utils/source-map-worker.js",
+    "pretty-print-worker": "./public/js/utils/pretty-print-worker.js"
+  },
   devtool: "source-map",
   output: {
     path: path.join(__dirname, "public/build"),
-    filename: "bundle.js",
+    filename: "[name].js",
     publicPath: "/public/build"
   },
   resolve: {
     alias: {
       "devtools/client/shared/vendor/react": "react",
+      "devtools/shared/event-emitter": path.join(
+        __dirname,
+        "./public/js/utils/event-emitter"
+      ),
       "devtools": path.join(__dirname, "./public/js/lib/devtools"),
       "devtools-sham": path.join(__dirname, "./public/js/lib/devtools-sham"),
-      "sdk": path.join(__dirname, "./public/js/lib/devtools-sham/sdk")
+      "sdk": path.join(__dirname, "./public/js/lib/devtools-sham/sdk"),
+      "Services": path.join(
+        __dirname,
+        "./public/js/lib/devtools/client/shared/shim/Services"
+      )
     }
   },
   module: {
@@ -45,15 +58,17 @@ let webpackConfig = {
             "&ignore=public/js/lib"
         ],
         isJavaScriptLoader: true
-      }
+      },
+      { test: /\.svg$/,
+        loader: "svg-inline" }
     ]
   },
   plugins: [
     new webpack.DefinePlugin({
       "process.env": {
-        NODE_ENV: JSON.stringify(node_env),
+        NODE_ENV: JSON.stringify(NODE_ENV),
+        TARGET: JSON.stringify("local")
       },
-      "DebuggerTarget": JSON.stringify("local"),
       "DebuggerConfig": JSON.stringify(getConfig())
     })
   ]
@@ -66,7 +81,7 @@ if (isDevelopment()) {
   });
 
   if (isEnabled("hotReloading")) {
-    webpackConfig.entry.push("webpack-hot-middleware/client");
+    webpackConfig.entry.bundle.push("webpack-hot-middleware/client");
 
     webpackConfig.plugins = webpackConfig.plugins.concat([
       new webpack.HotModuleReplacementPlugin(),
@@ -74,7 +89,7 @@ if (isDevelopment()) {
     ]);
 
     webpackConfig.module.loaders.forEach(spec => {
-      if(spec.isJavaScriptLoader) {
+      if (spec.isJavaScriptLoader) {
         spec.loaders.unshift("react-hot");
       }
     });
@@ -89,11 +104,15 @@ if (isDevelopment()) {
   webpackConfig.plugins.push(new ExtractTextPlugin("styles.css"));
 }
 
+if (isFirefoxPanel()) {
+  webpackConfig = require("./webpack.config.devtools")(webpackConfig);
+}
+
 // NOTE: This is only needed to fix a bug with chrome devtools' debugger and
-// destructuring params https://github.com/jlongster/debugger.html/issues/67
+// destructuring params https://github.com/devtools-html/debugger.html/issues/67
 if (isEnabled("transformParameters")) {
   webpackConfig.module.loaders.forEach(spec => {
-    if(spec.isJavaScriptLoader) {
+    if (spec.isJavaScriptLoader) {
       const idx = spec.loaders.findIndex(loader => loader.includes("babel"));
       spec.loaders[idx] += "&plugins[]=transform-es2015-parameters";
     }

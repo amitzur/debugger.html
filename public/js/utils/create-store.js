@@ -21,7 +21,7 @@ const { thunk } = require("./redux/middleware/thunk");
  *                   used in tests.
  *        - middleware: array of middleware to be included in the redux store
  */
-module.exports = (opts = {}) => {
+const configureStore = (opts = {}) => {
   const middleware = [
     thunk(opts.makeThunkArgs),
     promise,
@@ -45,10 +45,12 @@ module.exports = (opts = {}) => {
     middleware.push(log);
   }
 
-  // Optionally add the Redux DevTools Extension, if it exists.
-  const devtools = typeof window === "object" && window.devToolsExtension ?
+  // Hook in the redux devtools browser extension if it exists
+  const devtoolsExt = typeof window === "object" && window.devToolsExtension ?
     window.devToolsExtension() :
     f => f;
 
-  return applyMiddleware(...middleware)(devtools(createStore));
+  return applyMiddleware(...middleware)(devtoolsExt(createStore));
 };
+
+module.exports = configureStore;

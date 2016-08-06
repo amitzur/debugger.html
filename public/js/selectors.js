@@ -1,50 +1,19 @@
 // @flow
 
-import type { Record } from "./util/makeRecord";
+import type { Record } from "./utils/makeRecord";
 import type { SourcesState } from "./reducers/sources";
-import type { Location, Source } from "./actions/types";
+
+const URL = require("url");
+const path = require("./utils/path");
+const sources = require("./reducers/sources");
+const breakpoints = require("./reducers/breakpoints");
 
 type AppState = {
   sources: Record<SourcesState>,
   breakpoints: any,
   tabs: any,
   pause: any
-}
-
-/* Selectors */
-function getSources(state: AppState) {
-  return state.sources.sources;
-}
-
-function getSourceTabs(state: AppState) {
-  return state.sources.tabs;
-}
-
-function getSourcesText(state: AppState) {
-  return state.sources.sourcesText;
-}
-
-function getSelectedSource(state: AppState) {
-  return state.sources.selectedSource;
-}
-
-function getSourceMap(state: AppState, sourceId: string) {
-  return state.sources.sourceMaps.get(sourceId);
-}
-
-function getBreakpoint(state: AppState, location: Location) {
-  return state.breakpoints.getIn(["breakpoints", makeLocationId(location)]);
-}
-
-function getBreakpoints(state: AppState) {
-  return state.breakpoints.get("breakpoints");
-}
-
-function getBreakpointsForSource(state: AppState, sourceId: string) {
-  return state.breakpoints.get("breakpoints").filter(bp => {
-    return bp.getIn(["location", "sourceId"]) === sourceId;
-  });
-}
+};
 
 function getTabs(state: AppState) {
   return state.tabs.get("tabs");
@@ -62,8 +31,16 @@ function getLoadedObjects(state: AppState) {
   return state.pause.get("loadedObjects");
 }
 
+function getExpressions(state: AppState) {
+  return state.pause.get("expressions");
+}
+
 function getIsWaitingOnBreak(state: AppState) {
   return state.pause.get("isWaitingOnBreak");
+}
+
+function getShouldPauseOnExceptions(state: AppState) {
+  return state.pause.get("shouldPauseOnExceptions");
 }
 
 function getFrames(state: AppState) {
@@ -74,58 +51,50 @@ function getSelectedFrame(state: AppState) {
   return state.pause.get("selectedFrame");
 }
 
-function getSource(state: AppState, id: string) {
-  return getSources(state).get(id);
-}
-
-function getSourceCount(state: AppState) {
-  return getSources(state).size;
-}
-
-function getSourceByURL(state: AppState, url: string) {
-  return getSources(state).find(source => source.get("url") == url);
-}
-
-function getSourceById(state: AppState, id: string) {
-  return getSources(state).find(source => source.get("id") == id);
-}
-
-function getSourceText(state: AppState, id: string) {
-  return getSourcesText(state).get(id);
-}
-
-function getSourceMapURL(state: AppState, source: Source) {
-  const tab = getSelectedTab(state);
-  return tab.get("url") + "/" + source.sourceMapURL;
+function getSourceMapURL(state: AppState, source: any) {
+  if (path.isURL(source.sourceMapURL)) {
+    // If it's a full URL already, just use it.
+    return source.sourceMapURL;
+  } else if (path.isAbsolute(source.sourceMapURL)) {
+    // If it's an absolute path, it should be resolved relative to the
+    // host of the source.
+    const urlObj: any = URL.parse(source.url);
+    const base = urlObj.protocol + "//" + urlObj.host;
+    return base + source.sourceMapURL;
+  }
+  // Otherwise, it's a relative path and should be resolved relative
+  // to the source.
+  return path.dirname(source.url) + "/" + source.sourceMapURL;
 }
 
 /**
  * @param object - location
  */
-function makeLocationId(location: Location) {
-  return location.sourceId + ":" + location.line.toString();
-}
 
 module.exports = {
-  getSource,
-  getSources,
-  getSourceMap,
-  getSourceTabs,
-  getSourceCount,
-  getSourceByURL,
-  getSourceById,
+  getSource: sources.getSource,
+  getSourceByURL: sources.getSourceByURL,
+  getSourceById: sources.getSourceById,
+  getSources: sources.getSources,
+  getSourceText: sources.getSourceText,
+  getSourceTabs: sources.getSourceTabs,
+  getSelectedSource: sources.getSelectedSource,
+  getPendingSelectedSourceURL: sources.getPendingSelectedSourceURL,
+  getSourceMap: sources.getSourceMap,
+
   getSourceMapURL,
-  getSelectedSource,
-  getSourceText,
-  getBreakpoint,
-  getBreakpoints,
-  getBreakpointsForSource,
+
+  getBreakpoint: breakpoints.getBreakpoint,
+  getBreakpoints: breakpoints.getBreakpoints,
+  getBreakpointsForSource: breakpoints.getBreakpointsForSource,
+
   getTabs,
   getSelectedTab,
   getPause,
   getLoadedObjects,
+  getExpressions,
   getIsWaitingOnBreak,
+  getShouldPauseOnExceptions,
   getFrames,
-  getSelectedFrame,
-  makeLocationId
+  getSelectedFrame
 };

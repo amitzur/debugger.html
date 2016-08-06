@@ -1,5 +1,6 @@
 const React = require("react");
 const { DOM: dom, PropTypes } = React;
+const { filter } = require("fuzzaldrin-plus");
 require("./Autocomplete.css");
 
 const Autocomplete = React.createClass({
@@ -37,10 +38,9 @@ const Autocomplete = React.createClass({
     if (inputValue == "") {
       return [];
     }
-
-    return this.props.items.filter(
-      item => item.value.includes(inputValue)
-    );
+    return filter(this.props.items, this.state.inputValue, {
+      key: "value"
+    });
   },
 
   render() {
@@ -54,7 +54,7 @@ const Autocomplete = React.createClass({
           onChange: (e) => this.setState({ inputValue: e.target.value })
         }
       ),
-      dom.ul({},
+      dom.ul({ className: "results" },
         searchResults.map(this.renderSearchItem)
       )
     );

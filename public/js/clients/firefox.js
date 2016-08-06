@@ -1,9 +1,9 @@
 const { DebuggerClient } = require("devtools-sham/shared/client/main");
 const { DebuggerTransport } = require("devtools-sham/transport/transport");
-const WebSocketDebuggerTransport = require("devtools-sham/transport/ws-transport");
+const WebSocketDebuggerTransport = require("devtools/shared/transport/websocket-transport");
 const { TargetFactory } = require("devtools-sham/client/framework/target");
-const defer = require("../lib/devtools/shared/defer");
-const { getValue } = require("../../../config/feature");
+const defer = require("../utils/defer");
+const { getValue } = require("../feature");
 const { Tab } = require("../types");
 const { setupCommands, clientCommands } = require("./firefox/commands");
 const { setupEvents, clientEvents } = require("./firefox/events");
@@ -52,7 +52,7 @@ function connectClient() {
   const portPref = useProxy ? "firefox.proxyPort" : "firefox.webSocketPort";
   const webSocketPort = getValue(portPref);
 
-  const socket = new WebSocket(`ws://localhost:${webSocketPort}`);
+  const socket = new WebSocket(`ws://${document.location.hostname}:${webSocketPort}`);
   const transport = useProxy ?
     new DebuggerTransport(socket) : new WebSocketDebuggerTransport(socket);
   debuggerClient = new DebuggerClient(transport);

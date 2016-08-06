@@ -13,15 +13,15 @@ const RightSidebar = createFactory(require("./RightSidebar"));
 const SourceTabs = createFactory(require("./SourceTabs"));
 const SourceFooter = createFactory(require("./SourceFooter"));
 const Autocomplete = createFactory(require("./Autocomplete"));
-const { getSelectedSource, getSources, getBreakpoints } = require("../selectors");
-const { endTruncateStr } = require("../util/utils");
+const { getSelectedSource, getSources } = require("../selectors");
+const { endTruncateStr } = require("../utils/utils");
+const { KeyShortcuts } = require("../lib/devtools-sham/client/shared/key-shortcuts");
 
 const App = React.createClass({
   propTypes: {
     sources: PropTypes.object,
     selectedSource: PropTypes.object,
-    selectSource: PropTypes.func,
-    breakpoints: PropTypes.object
+    selectSource: PropTypes.func
   },
 
   displayName: "App",
@@ -33,18 +33,17 @@ const App = React.createClass({
   },
 
   componentDidMount() {
-    window.addEventListener("keydown", this.toggleSourcesSearch, false);
+    this.shortcuts = new KeyShortcuts({ window });
+    this.shortcuts.on("Cmd+P", this.toggleSourcesSearch);
   },
 
   componentWillUnmount() {
-    window.removeEventListener("keydown", this.toggleSourcesSearch, false);
+    this.shortcuts.off("Cmd+P", this.toggleSourcesSearch);
   },
 
-  toggleSourcesSearch(e) {
-    if (e.metaKey && e.key == "p") {
-      this.setState({ searchOn: !this.state.searchOn });
-      e.preventDefault();
-    }
+  toggleSourcesSearch(key, e) {
+    e.preventDefault();
+    this.setState({ searchOn: !this.state.searchOn });
   },
 
   renderSourcesSearch() {
@@ -105,22 +104,23 @@ const App = React.createClass({
   },
 
   render: function() {
-    return dom.div({ className: "theme-light debugger" }, SplitBox({
-      initialWidth: 300,
-      left: Sources({ sources: this.props.sources }),
-      right: SplitBox({
+    return dom.div({ className: "theme-light debugger" },
+      SplitBox({
         initialWidth: 300,
-        rightFlex: true,
-        left: this.renderCenterPane(this.props),
-        right: RightSidebar()
+        left: Sources({ sources: this.props.sources }),
+        right: SplitBox({
+          initialWidth: 300,
+          rightFlex: true,
+          left: this.renderCenterPane(this.props),
+          right: RightSidebar()
+        })
       })
-    }));
+    );
   }
 });
 
 module.exports = connect(
   state => ({ sources: getSources(state),
-              breakpoints: getBreakpoints(state),
               selectedSource: getSelectedSource(state) }),
   dispatch => bindActionCreators(actions, dispatch)
 )(App);

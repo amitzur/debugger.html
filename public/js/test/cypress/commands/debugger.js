@@ -42,27 +42,27 @@ function scopeAtIndex(index) {
   be able to be removed if the test waits for the elements to appear.
  */
 function debugPage(urlPart, browser = "Firefox") {
-  url = "http://localhost:8000/" + urlPart;
+  debugFirstTab(browser);
+  cy.wait(1000);
+  cy.navigate(urlPart)
+  cy.wait(1000);
+}
+
+function debugFirstTab(browser = "Firefox") {
   cy.visit("http://localhost:8000");
   cy.get(`.${browser} .tab`).first().click();
-  cy.wait(1000);
-  cy.navigate(urlPart);
-  cy.wait(1000);
-  cy.reload();
   cy.wait(1000);
 }
 
 function goToSource(source) {
-  let sourcesList = cy.get(".sources-list");
+  cy.window().then(win => {
+    win.dispatchEvent(Object.assign(new Event("keydown"), {
+      key: "p", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false
+    }))
+  });
 
-  const sourcePath = source.split("/");
-  const fileName = sourcePath.pop();
-
-  sourcePath.reduce((el, part) => {
-    return el.contains(".node", part).find(".arrow").click().end();
-  }, sourcesList);
-
-  sourcesList.contains(".node", fileName).click();
+  cy.get(".autocomplete input").type(source)
+  cy.get(".autocomplete .results li").first().click()
 }
 
 function toggleBreakpoint(linenumber) {
@@ -126,6 +126,7 @@ function sourceTab(fileName) {
 
 Object.assign(window, {
   debugPage,
+  debugFirstTab,
   goToSource,
   toggleBreakpoint,
   selectBreakpointInList,

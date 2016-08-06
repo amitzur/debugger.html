@@ -3,28 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const fromJS = require("../util/fromJS");
+const fromJS = require("../utils/fromJS");
 const I = require("immutable");
+const makeRecord = require("../utils/makeRecord");
 
-import type { Action, Source } from "../actions/types";
+import type { Action, Source, SourceText } from "../actions/types";
+import type { Record } from "../utils/makeRecord";
 
 export type SourcesState = {
-  sources: I.Map<string, I.Record<Source>>,
-  selectedSource: ?Source,
+  sources: I.Map<string, any>,
+  selectedSource: ?any,
+  pendingSelectedSourceURL: ?string,
   sourcesText: I.Map<string, any>,
   tabs: I.List<any>,
   sourceMaps: I.Map<string, any>,
 };
 
-const State = I.Record({
-  sources: I.Map({}),
+const State = makeRecord(({
+  sources: I.Map(),
   selectedSource: undefined,
-  sourcesText: I.Map({}),
-  sourceMaps: I.Map({}),
+  pendingSelectedSourceURL: undefined,
+  sourcesText: I.Map(),
+  sourceMaps: I.Map(),
   tabs: I.List([])
-});
+} : SourcesState));
 
-function update(state = State(), action: Action) {
+function update(state = State(), action: Action) : Record<SourcesState> {
   switch (action.type) {
     case "ADD_SOURCE": {
       const source: Source = action.source;
@@ -51,8 +55,12 @@ function update(state = State(), action: Action) {
     case "SELECT_SOURCE":
       return state.merge({
         selectedSource: action.source,
+        pendingSelectedSourceURL: null,
         tabs: updateTabList(state, fromJS(action.source), action.options)
       });
+
+    case "SELECT_SOURCE_URL":
+      return state.merge({ pendingSelectedSourceURL: action.url });
 
     case "CLOSE_TAB":
       return state.merge({
@@ -61,7 +69,16 @@ function update(state = State(), action: Action) {
       });
 
     case "LOAD_SOURCE_TEXT": {
-      return _updateText(state, action);
+      let values;
+      if (action.status === "done") {
+        const { generatedSourceText, originalSourceTexts } = action.value;
+        values = [generatedSourceText, ...originalSourceTexts];
+      } else {
+        const { source } = action;
+        values = [source];
+      }
+
+      return _updateText(state, action, values);
     }
 
     case "BLACKBOX":
@@ -74,21 +91,15 @@ function update(state = State(), action: Action) {
       break;
 
     case "TOGGLE_PRETTY_PRINT":
-      if (action.status === "error") {
-        return state.mergeIn(["sourcesText", action.source.id], {
-          loading: false
-        });
-      }
-
-      let s = _updateText(state, action);
       if (action.status === "done") {
-        s = s.setIn(
-          ["sources", action.source.id, "isPrettyPrinted"],
-          action.value.isPrettyPrinted
-        );
+        return _updateText(state, action, [action.value.sourceText])
+          .setIn(
+            ["sources", action.source.id, "isPrettyPrinted"],
+            action.value.isPrettyPrinted
+          );
       }
-      return s;
 
+      return _updateText(state, action, [action.originalSource]);
     case "NAVIGATE":
       // Reset the entire state to just the initial state, a blank state
       // if you will.
@@ -98,26 +109,32 @@ function update(state = State(), action: Action) {
   return state;
 }
 
-function _updateText(state, action) {
-  const { source } = action;
-
+function _updateText(state, action, values) : Record<SourcesState> {
   if (action.status === "start") {
     // Merge this in, don't set it. That way the previous value is
     // still stored here, and we can retrieve it if whatever we're
     // doing fails.
-    return state.mergeIn(["sourcesText", source.id], {
-      loading: true
-    });
-  } else if (action.status === "error") {
-    return state.setIn(["sourcesText", source.id], I.Map({
-      error: action.error
-    }));
+    return values.reduce((_state, source: any) => {
+      return _state.mergeIn(["sourcesText", source.id], {
+        loading: true
+      });
+    }, state);
   }
 
-  return state.setIn(["sourcesText", source.id], I.Map({
-    text: action.value.text,
-    contentType: action.value.contentType
-  }));
+  if (action.status === "error") {
+    return values.reduce((_state, source: any) => {
+      return _state.setIn(["sourcesText", source.id], I.Map({
+        error: action.error
+      }));
+    }, state);
+  }
+
+  return values.reduce((_state, sourceText: SourceText) => {
+    return _state.setIn(["sourcesText", sourceText.id], I.Map({
+      text: sourceText.text,
+      contentType: sourceText.contentType
+    }));
+  }, state);
 }
 
 function removeSourceFromTabList(state, id) {
@@ -175,9 +192,63 @@ function getNewSelectedSource(state, id) : ?Source {
   return tabs.get(tabIndex + 1);
 }
 
-// We need this for tests, but I also think we should start bundling
-// in selectors into reducer modules, so we'll eventually start
-// exporting multiple things from here. Need to flesh out this idea.
-update.SourcesState = State;
+// Selectors
 
-module.exports = update;
+// Unfortunately, it's really hard to make these functions accept just
+// the state that we care about and still type if with Flow. The
+// problem is that we want to re-export all selectors from a single
+// module for the UI, and all of those selectors should take the
+// top-level app state, so we'd have to "wrap" them to automatically
+// pick off the piece of state we're interested in. It's impossible
+// (right now) to type those wrapped functions.
+type OuterState = { sources: Record<SourcesState> };
+
+function getSource(state: OuterState, id: string) {
+  return state.sources.sources.get(id);
+}
+
+function getSourceByURL(state: OuterState, url: string) {
+  return state.sources.sources.find(source => source.get("url") == url);
+}
+
+function getSourceById(state: OuterState, id: string) {
+  return state.sources.sources.find(source => source.get("id") == id);
+}
+
+function getSources(state: OuterState) {
+  return state.sources.sources;
+}
+
+function getSourceText(state: OuterState, id: string) {
+  return state.sources.sourcesText.get(id);
+}
+
+function getSourceTabs(state: OuterState) {
+  return state.sources.tabs;
+}
+
+function getSelectedSource(state: OuterState) {
+  return state.sources.selectedSource;
+}
+
+function getPendingSelectedSourceURL(state: OuterState) {
+  return state.sources.pendingSelectedSourceURL;
+}
+
+function getSourceMap(state: OuterState, sourceId: string) {
+  return state.sources.sourceMaps.get(sourceId);
+}
+
+module.exports = {
+  State,
+  update,
+  getSource,
+  getSourceByURL,
+  getSourceById,
+  getSources,
+  getSourceText,
+  getSourceTabs,
+  getSelectedSource,
+  getPendingSelectedSourceURL,
+  getSourceMap
+};

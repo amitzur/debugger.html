@@ -13,6 +13,8 @@ export type Record<T: Object> = {
   setIn(keyPath: Array<any>, ...iterables: Array<any>): Record<T>;
   merge(values: $Shape<T>): Record<T>;
   mergeIn(keyPath: Array<any>, ...iterables: Array<any>): Record<T>;
+  delete<A>(key: $Keys<T>, value: A): Record<T>;
+  deleteIn(keyPath: Array<any>, ...iterables: Array<any>): Record<T>;
 } & T;
 
 /**
@@ -22,10 +24,9 @@ export type Record<T: Object> = {
  * record factory function
  */
 function makeRecord<T>(
-  spec: T & Object,
-  name: string
+  spec: T & Object
 ): (init: $Shape<T>) => Record<T> {
-  return I.Record(spec, name);
+  return I.Record(spec);
 }
 
 module.exports = makeRecord;

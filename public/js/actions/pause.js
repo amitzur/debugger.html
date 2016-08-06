@@ -1,6 +1,22 @@
 const constants = require("../constants");
 const { selectSource } = require("./sources");
-const { PROMISE } = require("../util/redux/middleware/promise");
+const { PROMISE } = require("../utils/redux/middleware/promise");
+const { Location, Frame } = require("../types");
+
+const { getExpressions } = require("../selectors");
+const { getOriginalLocation } = require("../utils/source-map");
+const { asyncMap } = require("../utils/utils");
+
+async function updateFrame(state, frame) {
+  const originalLocation = await getOriginalLocation(
+    state,
+    frame.location
+  );
+
+  return Frame.update(frame, {
+    $merge: { location: Location(originalLocation) }
+  });
+}
 
 /**
  * Debugger has just resumed
@@ -19,21 +35,36 @@ function resumed() {
  */
 function paused(pauseInfo) {
   return ({ dispatch, getState, client }) => {
-    const { location } = pauseInfo.frame;
+    let { frame, frames, why } = pauseInfo;
 
-    dispatch(selectSource(location.sourceId));
+    dispatch(evaluateExpressions());
 
-    dispatch({
+    return dispatch({
       type: constants.PAUSED,
-      pauseInfo: pauseInfo
+      [PROMISE]: (async function () {
+        frame = await updateFrame(getState(), frame);
+
+        frames = await asyncMap(frames, item => {
+          return updateFrame(getState(), item);
+        });
+
+        dispatch(selectSource(frame.location.sourceId));
+        return {
+          pauseInfo: { why, frame },
+          frames: frames
+        };
+      })()
     });
   };
 }
 
-function loadedFrames(frames) {
-  return {
-    type: constants.LOADED_FRAMES,
-    frames: frames
+function pauseOnExceptions(toggle) {
+  return ({ dispatch, getState, client }) => {
+    client.pauseOnExceptions(toggle);
+    return dispatch({
+      type: constants.PAUSE_ON_EXCEPTIONS,
+      toggle
+    });
   };
 }
 
@@ -98,10 +129,49 @@ function loadObjectProperties(grip) {
   };
 }
 
+/**
+ * Add expression for debugger to watch
+ * @param expression
+ */
+function addExpression(expression) {
+  return ({ dispatch, getState }) => {
+    dispatch({
+      type: constants.ADD_EXPRESSION,
+      id: expression.id || `${getExpressions(getState()).toSeq().size++}`,
+      input: expression.input
+    });
+  };
+}
+
+function updateExpression(expression) {
+  return ({ dispatch }) => {
+    dispatch({
+      type: constants.UPDATE_EXPRESSION,
+      id: expression.id,
+      input: expression.input
+    });
+  };
+}
+
+function evaluateExpressions() {
+  return ({ dispatch, getState, client }) => {
+    for (let expression of getExpressions(getState())) {
+      dispatch({
+        type: constants.EVALUATE_EXPRESSION,
+        id: expression.id,
+        input: expression.input,
+        [PROMISE]: client.evaluate(expression.input)
+      });
+    }
+  };
+}
+
 module.exports = {
+  addExpression,
+  updateExpression,
   resumed,
   paused,
-  loadedFrames,
+  pauseOnExceptions,
   command,
   breakOnNext,
   selectFrame,

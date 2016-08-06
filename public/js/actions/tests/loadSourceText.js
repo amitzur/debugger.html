@@ -1,7 +1,7 @@
-const { Task } = require("../../util/task");
+const { Task } = require("../../utils/task");
 const expect = require("expect.js");
 
-const { actions, selectors, createStore } = require("../../util/test-head");
+const { actions, selectors, createStore } = require("../../utils/test-head");
 const { getSourceText } = selectors;
 const { loadSourceText } = actions;
 
@@ -37,7 +37,7 @@ const deferredMockThreadClient = {
         return;
       }
 
-      resolve("ok");
+      resolve({ source: "ok", contentType: "text/javascript" });
     });
   }
 };
@@ -95,7 +95,8 @@ describe("loadSourceText", () => {
   it("source failed to load", function() {
     return Task.spawn(function* () {
       const store = createStore(deferredMockThreadClient);
-      yield store.dispatch(loadSourceText({ id: "badId" })).catch(() => {});
+      yield store.dispatch(loadSourceText({ id: "badId" }))
+                 .catch(() => {});
 
       const fooSourceText = getSourceText(store.getState(), "badId");
       expect(fooSourceText.get("error")).to.equal("failed to load");

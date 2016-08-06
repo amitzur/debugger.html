@@ -2,27 +2,64 @@
 
 export type AsyncStatus = "start" | "done" | "error";
 
-export type Source = {
-  id: string,
-  url?: string
-};
-
 export type Location = {
   sourceId: string,
   line: number,
   column?: number
-}
+};
 
-export type Action =
+export type Breakpoint = {
+  id: string,
+  location: Location,
+  loading: boolean,
+  disabled: boolean,
+  text: string,
+  condition: ?string
+};
+
+export type SourceText = {
+  id: string,
+  text: string,
+  contentType: string
+};
+
+export type Source = {
+  id: string,
+  url?: string,
+  sourceMapURL?: string
+};
+
+type BreakpointAction =
+  { type: "ADD_BREAKPOINT",
+    breakpoint: Breakpoint,
+    condition: string,
+    status: AsyncStatus,
+    error: string,
+    value: { actualLocation: Location, id: string, text: string } }
+  | { type: "REMOVE_BREAKPOINT",
+      breakpoint: Breakpoint,
+      status: AsyncStatus,
+      error: string,
+      disabled: boolean }
+  | { type: "SET_BREAKPOINT_CONDITION",
+      breakpoint: Breakpoint,
+      condition: string,
+      status: AsyncStatus,
+      error: string };
+
+type SourceAction =
   { type: "ADD_SOURCE", source: Source }
   | { type: "ADD_SOURCES", sources: Array<Source> }
   | { type: "SELECT_SOURCE", source: Source, options: { position?: number } }
-  | { type: "CLOSE_TAB", id: string }
+  | { type: "SELECT_SOURCE_URL", url: string }
   | { type: "LOAD_SOURCE_TEXT",
       source: Source,
       status: AsyncStatus,
       error: string,
-      value: { text: string, contentType: string }}
+      value: {
+        generatedSourceText: SourceText,
+        originalSourceTexts: Array<SourceText>
+      }}
   | { type: "BLACKBOX",
       source: Source,
       status: AsyncStatus,
@@ -30,9 +67,14 @@ export type Action =
       value: { isBlackBoxed: boolean }}
   | { type: "TOGGLE_PRETTY_PRINT",
       source: Source,
+      originalSource: Source,
       status: AsyncStatus,
       error: string,
       value: { isPrettyPrinted: boolean,
-               text: string,
-               contentType: string }}
+               sourceText: SourceText }}
+  | { type: "CLOSE_TAB", id: string };
+
+export type Action =
+  SourceAction
+  | BreakpointAction
   | { type: "NAVIGATE" };

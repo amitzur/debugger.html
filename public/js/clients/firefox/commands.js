@@ -1,5 +1,5 @@
 const { BreakpointResult, Location } = require("../../types");
-const defer = require("../../lib/devtools/shared/defer");
+const defer = require("../../utils/defer");
 
 let bpClients;
 let threadClient;
@@ -94,6 +94,10 @@ function getProperties(grip) {
   return objClient.getPrototypeAndProperties();
 }
 
+function pauseOnExceptions(toggle) {
+  return threadClient.pauseOnExceptions(toggle);
+}
+
 function prettyPrint(sourceId, indentSize) {
   const sourceClient = threadClient.source({ actor: sourceId });
   return sourceClient.prettyPrint(indentSize);
@@ -116,6 +120,7 @@ const clientCommands = {
   evaluate,
   navigate,
   getProperties,
+  pauseOnExceptions,
   prettyPrint,
   disablePrettyPrint
 };

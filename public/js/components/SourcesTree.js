@@ -4,18 +4,15 @@ const { DOM: dom, PropTypes } = React;
 const {
   nodeHasChildren, createParentMap, addToTree,
   collapseTree, createTree
-} = require("../util/sources-tree.js");
+} = require("../utils/sources-tree.js");
 
 const classnames = require("classnames");
 const ImPropTypes = require("react-immutable-proptypes");
-const Arrow = React.createFactory(require("./util/Arrow"));
 const { Set } = require("immutable");
+const debounce = require("lodash/debounce");
 
-const ManagedTree = React.createFactory(require("./util/ManagedTree"));
-const FolderIcon = React.createFactory(require("./util/Icons").FolderIcon);
-const DomainIcon = React.createFactory(require("./util/Icons").DomainIcon);
-const FileIcon = React.createFactory(require("./util/Icons").FileIcon);
-const WorkerIcon = React.createFactory(require("./util/Icons").WorkerIcon);
+const ManagedTree = React.createFactory(require("./utils/ManagedTree"));
+const Svg = require("./utils/Svg");
 
 let SourcesTree = React.createClass({
   propTypes: {
@@ -29,34 +26,53 @@ let SourcesTree = React.createClass({
     return createTree(this.props.sources);
   },
 
+  componentWillMount() {
+    this.debouncedUpdate = debounce(this.debouncedUpdate, 50);
+  },
+
+  shouldComponentUpdate() {
+    this.debouncedUpdate();
+    return false;
+  },
+
   componentWillReceiveProps(nextProps) {
-    if (nextProps.sources !== this.props.sources) {
-      if (nextProps.sources.size === 0) {
-        this.setState(createTree(nextProps.sources));
-        return;
-      }
-
-      const next = Set(nextProps.sources.valueSeq());
-      const prev = Set(this.props.sources.valueSeq());
-      const newSet = next.subtract(prev);
-
-      const uncollapsedTree = this.state.uncollapsedTree;
-      for (let source of newSet) {
-        addToTree(uncollapsedTree, source);
-      }
-
-      // TODO: recreating the tree every time messes with the expanded
-      // state of ManagedTree, because it depends on item instances
-      // being the same. The result is that if a source is added at a
-      // later time, all expanded state is lost.
-      const sourceTree = newSet.size > 0
-            ? collapseTree(uncollapsedTree)
-            : this.state.sourceTree;
-
-      this.setState({ uncollapsedTree,
-                      sourceTree,
-                      parentMap: createParentMap(sourceTree) });
+    if (nextProps.sources === this.props.sources) {
+      return;
     }
+
+    if (nextProps.sources.size === 0) {
+      this.setState(createTree(nextProps.sources));
+      return;
+    }
+
+    const next = Set(nextProps.sources.valueSeq());
+    const prev = Set(this.props.sources.valueSeq());
+    const newSet = next.subtract(prev);
+
+    const uncollapsedTree = this.state.uncollapsedTree;
+    for (let source of newSet) {
+      addToTree(uncollapsedTree, source);
+    }
+
+    // TODO: recreating the tree every time messes with the expanded
+    // state of ManagedTree, because it depends on item instances
+    // being the same. The result is that if a source is added at a
+    // later time, all expanded state is lost.
+    const sourceTree = newSet.size > 0
+          ? collapseTree(uncollapsedTree)
+          : this.state.sourceTree;
+
+    this.setState({ uncollapsedTree,
+                    sourceTree,
+                    parentMap: createParentMap(sourceTree) });
+  },
+
+  debouncedUpdate() {
+    if (!this.isMounted()) {
+      return;
+    }
+
+    this.forceUpdate();
   },
 
   focusItem(item) {
@@ -69,59 +85,42 @@ let SourcesTree = React.createClass({
     }
   },
 
-  renderItem(item, depth, focused, _, expanded, { setExpanded }) {
-    const arrow = Arrow({
-      className: classnames(
-        { expanded: expanded,
-          hidden: !nodeHasChildren(item) }
-      ),
-      onClick: e => {
-        e.stopPropagation();
-        setExpanded(item, !expanded);
-      }
-    });
-
-    const folder = FolderIcon({
-      className: classnames(
-        "folder"
-      )
-    });
-
-    const domain = DomainIcon({
-      className: classnames(
-        "domain"
-      )
-    });
-
-    const file = FileIcon({
-      className: classnames(
-        "file"
-      )
-    });
-
-    const worker = WorkerIcon({
-      className: classnames(
-        "worker"
-      )
-    });
-
-    let icon = worker;
-
+  getIcon(item, depth) {
     if (depth === 0) {
-      icon = domain;
-    } else if (!nodeHasChildren(item)) {
-      icon = file;
-    } else {
-      icon = folder;
+      return new Svg("domain");
     }
 
-    return dom.div(
-      { className: classnames("node", { focused }),
-        style: { paddingLeft: depth * 15 + "px" },
-        onClick: () => this.selectItem(item),
-        onDoubleClick: e => {
+    if (!nodeHasChildren(item)) {
+      return new Svg("file");
+    }
+
+    return new Svg("folder");
+  },
+
+  renderItem(item, depth, focused, _, expanded, { setExpanded }) {
+    const arrow = new Svg("arrow",
+      {
+        className: classnames(
+          { expanded: expanded,
+            hidden: !nodeHasChildren(item) }
+        ),
+        onClick: e => {
+          e.stopPropagation();
           setExpanded(item, !expanded);
-        } },
+        }
+      }
+    );
+
+    const icon = this.getIcon(item, depth);
+
+    return dom.div(
+      {
+        className: classnames("node", { focused }),
+        style: { paddingLeft: depth * 15 + "px" },
+        key: item.path,
+        onClick: () => this.selectItem(item),
+        onDoubleClick: e => setExpanded(item, !expanded)
+      },
       dom.div(null, arrow, icon, item.name)
     );
   },

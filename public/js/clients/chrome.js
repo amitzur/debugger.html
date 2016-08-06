@@ -1,12 +1,12 @@
 /* eslint-disable */
 
 const { connect } = require("../lib/chrome-remote-debug-protocol");
-const defer = require("../lib/devtools/shared/defer");
+const defer = require("../utils/defer");
 const { Tab } = require("../types");
-const { isEnabled, getValue } = require("../../../config/feature");
-const { networkRequest } = require("../util/networkRequest");
+const { isEnabled, getValue } = require("../feature");
+const { networkRequest } = require("../utils/networkRequest");
 const { setupCommands, clientCommands } = require("./chrome/commands");
-const { setupEvents, clientEvents } = require("./chrome/events");
+const { setupEvents, clientEvents, pageEvents } = require("./chrome/events");
 
 // TODO: figure out a way to avoid patching native prototypes.
 // Unfortunately the Chrome client requires it to work.
@@ -17,14 +17,11 @@ Array.prototype.peekLast = function() {
 let connection;
 
 function createTabs(tabs) {
-  const blacklist = ["New Tab", "Inspectable pages"];
 
   return tabs
     .filter(tab => {
       const isPage = tab.type == "page";
-      const isBlacklisted = blacklist.indexOf(tab.title) != -1;
-
-      return isPage && !isBlacklisted;
+      return isPage;
     })
     .map(tab => {
       return Tab({
@@ -78,7 +75,10 @@ function initPage(actions) {
   agents.Runtime.enable();
   agents.Runtime.run();
 
+  agents.Page.enable();
+
   connection.registerDispatcher("Debugger", clientEvents);
+  connection.registerDispatcher("Page", pageEvents);
 }
 
 module.exports = {

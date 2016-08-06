@@ -3,28 +3,34 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const constants = require("../constants");
-const fromJS = require("../util/fromJS");
+const fromJS = require("../utils/fromJS");
 
 const initialState = fromJS({
   pause: null,
   isWaitingOnBreak: false,
   frames: null,
   selectedFrame: null,
-  loadedObjects: {}
+  loadedObjects: {},
+  shouldPauseOnExceptions: false,
+  expressions: []
 });
 
 function update(state = initialState, action, emit) {
   switch (action.type) {
     case constants.PAUSED:
-      const pause = action.pauseInfo;
-      pause.isInterrupted = pause.why.type === "interrupted";
+      if (action.status == "done") {
+        const pause = action.value.pauseInfo;
+        pause.isInterrupted = pause.why.type === "interrupted";
 
-      return state.merge({
-        isWaitingOnBreak: false,
-        pause: fromJS(pause),
-        selectedFrame: action.pauseInfo.frame
-      });
+        return state.merge({
+          isWaitingOnBreak: false,
+          pause: fromJS(pause),
+          selectedFrame: action.value.pauseInfo.frame,
+          frames: action.value.frames
+        });
+      }
 
+      break;
     case constants.RESUME:
       return state.merge({
         pause: null,
@@ -37,8 +43,11 @@ function update(state = initialState, action, emit) {
       return state.set("isWaitingOnBreak", true);
 
     case constants.LOADED_FRAMES:
-      return state.set("frames", action.frames);
+      if (action.status == "done") {
+        return state.set("frames", action.value.frames);
+      }
 
+      break;
     case constants.SELECT_FRAME:
       return state.set("selectedFrame", action.frame);
 
@@ -54,6 +63,34 @@ function update(state = initialState, action, emit) {
 
     case constants.NAVIGATE:
       return initialState;
+
+    case constants.PAUSE_ON_EXCEPTIONS:
+      const toggle = action.toggle;
+      return state.set("shouldPauseOnExceptions", toggle);
+
+    case constants.ADD_EXPRESSION:
+      return state.setIn(["expressions", action.id],
+        { id: action.id,
+          input: action.input,
+          value: action.value,
+          updating: false });
+
+    case constants.EVALUATE_EXPRESSION:
+      if (action.status === "done") {
+        return state.mergeIn(["expressions", action.id],
+          { id: action.id,
+            input: action.input,
+            value: action.value,
+            updating: false });
+      }
+      break;
+
+    case constants.UPDATE_EXPRESSION:
+      return state.mergeIn(["expressions", action.id],
+        { id: action.id,
+          input: action.input,
+          updating: true });
+
   }
 
   return state;

@@ -1,4 +1,4 @@
-/* global window, document */
+/* global window, document, DebuggerConfig */
 
 const { bindActionCreators, combineReducers } = require("redux");
 const { Provider } = require("react-redux");
@@ -7,20 +7,20 @@ const React = require("react");
 
 const DevToolsUtils = require("devtools-sham/shared/DevToolsUtils");
 const AppConstants = require("devtools-sham/sham/appconstants").AppConstants;
-const { injectGlobals } = require("./util/debug");
-const { log } = require("./util/utils");
-const { isEnabled, isFirefoxPanel, isDevelopment } = require("../../config/feature");
+const { injectGlobals } = require("./utils/debug");
+const { isEnabled, isFirefoxPanel,
+        isDevelopment, setConfig } = require("../../config/feature");
+
+setConfig(DebuggerConfig);
 
 // Set various flags before requiring app code.
 if (isEnabled("logging.client")) {
   DevToolsUtils.dumpn.wantLogging = true;
 }
 
-log("Debugger bootstrapping");
-
 const { getClient, connectClients, startDebugging } = require("./clients");
 const firefox = require("./clients/firefox");
-const configureStore = require("./util/create-store");
+const configureStore = require("./utils/create-store");
 const reducers = require("./reducers");
 
 const Tabs = require("./components/Tabs");

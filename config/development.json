@@ -1,12 +1,15 @@
 {
   "environment": "development",
+  "baseWorkerURL": "public/build/",
   "logging": {
     "client": false,
     "firefoxProxy": false
   },
   "features": {
     "tabs": true,
-    "sourceMaps": true
+    "sourceMaps": true,
+    "prettyPrint": false,
+    "watchExpressions": false
   },
   "chrome": {
     "debug": false,

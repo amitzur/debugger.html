@@ -2,37 +2,61 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const defer = require("devtools/shared/defer");
-const { PROMISE } = require("../util/redux/middleware/promise");
-const { Task } = require("../util/task");
-const { isJavaScript } = require("../util/source");
-const { networkRequest } = require("../util/networkRequest");
+const defer = require("../utils/defer");
+const { PROMISE } = require("../utils/redux/middleware/promise");
+const { Task } = require("../utils/task");
+const { isJavaScript } = require("../utils/source");
+const { networkRequest } = require("../utils/networkRequest");
+const { workerTask } = require("../utils/utils");
 
-const { getSource, getSourceText,
-        getSourceMap, getSourceMapURL } = require("../selectors");
 const constants = require("../constants");
-const Prefs = require("../prefs");
 const invariant = require("invariant");
-const { isEnabled } = require("../../../config/feature");
-const { setSourceMap, createOriginalSources,
-        isOriginal, getOriginalSource } = require("../util/source-map");
+const { isEnabled } = require("../feature");
 
-/**
- * Throttles source dispatching to reduce rendering churn.
- */
-let newSources = [];
-let newSourceTimeout;
-function queueSourcesDispatch(dispatch) {
-  if (!newSourceTimeout) {
-    // Even just batching every 10ms works because we just want to
-    // group sources that come in at once.
-    newSourceTimeout = setTimeout(() => {
-      dispatch({ type: constants.ADD_SOURCES,
-                 sources: newSources });
-      newSources = [];
-      newSourceTimeout = null;
-    }, 10);
-  }
+const {
+  createOriginalSources, getOriginalSourceTexts,
+  createSourceMap, makeOriginalSource,
+  getGeneratedSource
+} = require("../utils/source-map");
+
+const {
+  getSource, getSourceByURL, getSourceText,
+  getPendingSelectedSourceURL,
+  getSourceMap, getSourceMapURL
+} = require("../selectors");
+
+function _shouldSourceMap(generatedSource) {
+  return isEnabled("features.sourceMaps") && generatedSource.sourceMapURL;
+}
+
+function _addSource(source) {
+  return {
+    type: constants.ADD_SOURCE,
+    source
+  };
+}
+
+async function _prettyPrintSource({ source, sourceText, url }) {
+  const contentType = sourceText ? sourceText.contentType : null;
+  const indent = 2;
+
+  invariant(
+    isJavaScript(source.url, contentType),
+    "Can't prettify non-javascript files."
+  );
+
+  const { code, mappings } = await workerTask(
+    new Worker("public/build/pretty-print-worker.js"),
+    {
+      url,
+      indent,
+      source: sourceText.text
+    }
+  );
+
+  await createSourceMap({ source, mappings, code });
+
+  return code;
 }
 
 /**
@@ -40,15 +64,18 @@ function queueSourcesDispatch(dispatch) {
  */
 function newSource(source) {
   return ({ dispatch, getState }) => {
-    if (isEnabled("features.sourceMaps") && source.sourceMapURL) {
+    if (_shouldSourceMap(source)) {
       dispatch(loadSourceMap(source));
     }
 
-    // We don't immediately dispatch the source because several
-    // thousand may come in at the same time and we want to batch
-    // rendering.
-    newSources.push(source);
-    queueSourcesDispatch(dispatch);
+    dispatch(_addSource(source));
+
+    // If a request has been made to show this source, go ahead and
+    // select it.
+    const pendingURL = getPendingSelectedSourceURL(getState());
+    if (pendingURL === source.url) {
+      dispatch(selectSource(source.id));
+    }
   };
 }
 
@@ -66,13 +93,36 @@ function loadSourceMap(generatedSource) {
         const sourceMapURL = getSourceMapURL(getState(), generatedSource);
         sourceMap = await networkRequest(sourceMapURL);
 
-        setSourceMap(generatedSource, sourceMap);
-        createOriginalSources(generatedSource)
-          .forEach(s => dispatch(newSource(s)));
+        const originalSources = await createOriginalSources(
+          generatedSource,
+          sourceMap
+        );
+
+        originalSources.forEach(s => dispatch(newSource(s)));
 
         return { sourceMap };
       })()
     });
+  };
+}
+
+/**
+ * Deterministically select a source that has a given URL. This will
+ * work regardless of the connection status or if the source exists
+ * yet. This exists mostly for external things to interact with the
+ * debugger.
+ */
+function selectSourceURL(url) {
+  return ({ dispatch, getState }) => {
+    const source = getSourceByURL(getState(), url);
+    if (source) {
+      dispatch(selectSource(source.get("id")));
+    } else {
+      dispatch({
+        type: constants.SELECT_SOURCE_URL,
+        url: url
+      });
+    }
   };
 }
 
@@ -146,40 +196,36 @@ function blackbox(source, shouldBlackBox) {
 function togglePrettyPrint(id) {
   return ({ dispatch, getState, client }) => {
     const source = getSource(getState(), id).toJS();
-    const wantPretty = !source.isPrettyPrinted;
+
+    if (!isEnabled("features.prettyPrint") || source.isPrettyPrinted) {
+      return {};
+    }
+
+    const url = source.url + ":formatted";
+    const originalSource = makeOriginalSource({ url, source });
+    dispatch(_addSource(originalSource));
 
     return dispatch({
       type: constants.TOGGLE_PRETTY_PRINT,
-      source: source,
-      [PROMISE]: Task.spawn(function* () {
-        let response;
-
-        // Only attempt to pretty print JavaScript sources.
+      source,
+      originalSource,
+      [PROMISE]: (async function () {
         const sourceText = getSourceText(getState(), source.id).toJS();
-        const contentType = sourceText ? sourceText.contentType : null;
+        const text = await _prettyPrintSource({ source, sourceText, url });
 
-        invariant(
-          isJavaScript(source.url, contentType),
-          "Can't prettify non-javascript files."
-        );
+        dispatch(selectSource(originalSource.id));
 
-        if (wantPretty) {
-          response = yield client.prettyPrint(source.id, Prefs.editorTabSize);
-        } else {
-          response = yield client.disablePrettyPrint(source.id);
-        }
-
-        // Remove the cached source AST from the Parser, to avoid getting
-        // wrong locations when searching for functions.
-        // TODO: add Parser dependency
-        // DebuggerController.Parser.clearSource(source.url);
+        const originalSourceText = {
+          id: originalSource.id,
+          contentType: "text/javascript",
+          text
+        };
 
         return {
-          isPrettyPrinted: wantPretty,
-          text: response.source,
-          contentType: response.contentType
+          isPrettyPrinted: true,
+          sourceText: originalSourceText
         };
-      })
+      })()
     });
   };
 }
@@ -196,19 +242,27 @@ function loadSourceText(source) {
     return dispatch({
       type: constants.LOAD_SOURCE_TEXT,
       source: source,
-      [PROMISE]: Task.spawn(function* () {
-        // let transportType = gThreadClient.localTransport
-        // ? "_LOCAL" : "_REMOTE";
-        // let histogramId = "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE"
-        //  + transportType + "_MS";
-        // let histogram = Services.telemetry.getHistogramById(histogramId);
-        // let startTime = Date.now();
+      [PROMISE]: (async function () {
+        const generatedSource = await getGeneratedSource(
+          getState(),
+          source
+        );
 
-        const response = isOriginal(source)
-          ? yield getOriginalSource(source, getState, dispatch, loadSourceText)
-          : yield client.sourceContents(source.id);
+        const response = await client.sourceContents(
+          generatedSource.id
+        );
 
-        // histogram.add(Date.now() - startTime);
+        const generatedSourceText = {
+          text: response.source,
+          contentType: response.contentType || "text/javascript",
+          id: generatedSource.id
+        };
+
+        const originalSourceTexts = await getOriginalSourceTexts(
+          getState(),
+          generatedSource,
+          generatedSourceText.text
+        );
 
         // Automatically pretty print if enabled and the test is
         // detected to be "minified"
@@ -218,9 +272,11 @@ function loadSourceText(source) {
         //   dispatch(togglePrettyPrint(source));
         // }
 
-        return { text: response.source,
-                 contentType: response.contentType };
-      })
+        return {
+          generatedSourceText,
+          originalSourceTexts
+        };
+      })()
     });
   };
 }
@@ -301,6 +357,7 @@ function getTextForSources(actors) {
 module.exports = {
   newSource,
   selectSource,
+  selectSourceURL,
   closeTab,
   blackbox,
   togglePrettyPrint,
