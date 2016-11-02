@@ -3,20 +3,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**
+ * Breakpoints reducer
+ * @module reducers/breakpoints
+ */
+
 const fromJS = require("../utils/fromJS");
 const { updateObj } = require("../utils/utils");
 const I = require("immutable");
 const makeRecord = require("../utils/makeRecord");
 
-import type { Action, Breakpoint, Location } from "../actions/types";
+import type { Breakpoint, Location } from "../types";
+import type { Action } from "../actions/types";
 import type { Record } from "../utils/makeRecord";
 
 export type BreakpointsState = {
-  breakpoints: I.Map<string, Breakpoint>
+  breakpoints: I.Map<string, Breakpoint>,
+  breakpointsDisabled: false
 }
 
 const State = makeRecord(({
-  breakpoints: I.Map()
+  breakpoints: I.Map(),
+  breakpointsDisabled: false
 } : BreakpointsState));
 
 // Return the first argument that is a string, or null if nothing is a
@@ -104,6 +112,14 @@ function update(state = State(), action: Action) {
       break;
     }
 
+    case "TOGGLE_BREAKPOINTS": {
+      if (action.status === "start") {
+        return state.set(
+          "breakpointsDisabled", action.shouldDisableBreakpoints);
+      }
+      break;
+    }
+
     case "SET_BREAKPOINT_CONDITION": {
       const id = makeLocationId(action.breakpoint.location);
 
@@ -116,6 +132,7 @@ function update(state = State(), action: Action) {
       } else if (action.status === "done") {
         const bp = state.breakpoints.get(id);
         return state.setIn(["breakpoints", id], updateObj(bp, {
+          id: action.value.id,
           loading: false
         }));
       } else if (action.status === "error") {
@@ -146,11 +163,26 @@ function getBreakpointsForSource(state: OuterState, sourceId: string) {
   });
 }
 
+function getBreakpointsDisabled(state: OuterState): boolean {
+  return state.breakpoints.get("breakpointsDisabled");
+}
+
+function getBreakpointsLoading(state: OuterState) {
+  const breakpoints = getBreakpoints(state);
+  const isLoading = !!breakpoints.valueSeq()
+                    .filter(bp => bp.loading)
+                    .first();
+
+  return breakpoints.size > 0 && isLoading;
+}
+
 module.exports = {
   State,
   update,
   makeLocationId,
   getBreakpoint,
   getBreakpoints,
-  getBreakpointsForSource
+  getBreakpointsForSource,
+  getBreakpointsDisabled,
+  getBreakpointsLoading
 };

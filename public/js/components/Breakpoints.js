@@ -2,13 +2,15 @@ const React = require("react");
 const { connect } = require("react-redux");
 const { bindActionCreators } = require("redux");
 const ImPropTypes = require("react-immutable-proptypes");
-const Isvg = React.createFactory(require("react-inlinesvg"));
 const classnames = require("classnames");
 const actions = require("../actions");
 const { getSource, getPause, getBreakpoints } = require("../selectors");
 const { makeLocationId } = require("../reducers/breakpoints");
 const { truncateStr } = require("../utils/utils");
 const { DOM: dom, PropTypes } = React;
+const { endTruncateStr } = require("../utils/utils");
+const { basename } = require("../utils/path");
+const CloseButton = require("./CloseButton");
 
 require("./Breakpoints.css");
 
@@ -26,17 +28,32 @@ function isCurrentlyPausedAtBreakpoint(state, breakpoint) {
   return bpId === pausedId;
 }
 
+function renderSourceLocation(source, line) {
+  const url = source.get("url") ? basename(source.get("url")) : null;
+  // const line = url !== "" ? `: ${line}` : "";
+  return url ?
+    dom.div(
+      { className: "location" },
+      `${endTruncateStr(url, 30)}: ${line}`
+    ) : null;
+}
+
 const Breakpoints = React.createClass({
   propTypes: {
     breakpoints: ImPropTypes.map.isRequired,
     enableBreakpoint: PropTypes.func.isRequired,
     disableBreakpoint: PropTypes.func.isRequired,
-    selectSource: PropTypes.func.isRequired
+    selectSource: PropTypes.func.isRequired,
+    removeBreakpoint: PropTypes.func.isRequired
   },
 
   displayName: "Breakpoints",
 
   handleCheckbox(breakpoint) {
+    if (breakpoint.loading) {
+      return;
+    }
+
     if (breakpoint.disabled) {
       this.props.enableBreakpoint(breakpoint.location);
     } else {
@@ -50,17 +67,17 @@ const Breakpoints = React.createClass({
     this.props.selectSource(sourceId, { line });
   },
 
+  removeBreakpoint(event, breakpoint) {
+    event.stopPropagation();
+    this.props.removeBreakpoint(breakpoint.location);
+  },
+
   renderBreakpoint(breakpoint) {
     const snippet = truncateStr(breakpoint.text || "", 30);
     const locationId = breakpoint.locationId;
     const line = breakpoint.location.line;
     const isCurrentlyPaused = breakpoint.isCurrentlyPaused;
     const isDisabled = breakpoint.disabled;
-
-    const isPausedIcon = isCurrentlyPaused && Isvg({
-      className: "pause-indicator",
-      src: "images/pause-circle.svg"
-    });
 
     return dom.div(
       {
@@ -72,18 +89,23 @@ const Breakpoints = React.createClass({
         key: locationId,
         onClick: () => this.selectBreakpoint(breakpoint)
       },
-      dom.input(
-        {
-          type: "checkbox",
-          checked: !isDisabled,
-          onChange: () => this.handleCheckbox(breakpoint)
-        }),
+      dom.input({
+        type: "checkbox",
+        className: "breakpoint-checkbox",
+        checked: !isDisabled,
+        onChange: () => this.handleCheckbox(breakpoint),
+        // Prevent clicking on the checkbox from triggering the onClick of
+        // the surrounding div
+        onClick: (ev) => ev.stopPropagation()
+      }),
       dom.div(
         { className: "breakpoint-label", title: breakpoint.text },
-        `${line} ${snippet}`
+        dom.div({}, renderSourceLocation(breakpoint.location.source, line))
       ),
-      isPausedIcon
-    );
+      dom.div({ className: "breakpoint-snippet" }, snippet),
+      CloseButton({
+        handleClick: (ev) => this.removeBreakpoint(ev, breakpoint)
+      }));
   },
 
   render() {
@@ -110,7 +132,8 @@ function _getBreakpoints(state) {
     bp.locationId = locationId;
     bp.isCurrentlyPaused = isCurrentlyPaused;
     return bp;
-  });
+  })
+  .filter(bp => bp.location.source);
 }
 
 module.exports = connect(

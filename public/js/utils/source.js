@@ -1,11 +1,22 @@
+// @flow
+
+/**
+ * Utils for working with Source URLs
+ * @module utils/source
+ */
+
+const { endTruncateStr } = require("./utils");
+const { basename } = require("../utils/path");
+
+import type { Source } from "../types";
 
 /**
  * Trims the query part or reference identifier of a url string, if necessary.
  *
- * @param string url - The source url.
- * @return string - The shortened url.
+ * @memberof utils/source
+ * @static
  */
-function trimUrlQuery(url) {
+function trimUrlQuery(url: string): string {
   let length = url.length;
   let q1 = url.indexOf("?");
   let q2 = url.indexOf("&");
@@ -23,12 +34,43 @@ function trimUrlQuery(url) {
  *
  * @return boolean
  *         True if the source is likely javascript.
+ *
+ * @memberof utils/source
+ * @static
  */
-function isJavaScript(url, contentType = "") {
-  return (url && /\.jsm?$/.test(trimUrlQuery(url))) ||
+function isJavaScript(url: string, contentType: string = ""): boolean {
+  return (url && /\.(jsm|js)?$/.test(trimUrlQuery(url))) ||
          contentType.includes("javascript");
 }
 
+/**
+ * @memberof utils/source
+ * @static
+ */
+function isPretty(source: Source): boolean {
+  return source.url ? /formatted$/.test(source.url) : false;
+}
+
+/**
+ * Show a source url's filename.
+ * If the source does not have a url, use the source id.
+ *
+ * @memberof utils/source
+ * @static
+ */
+function getFilename(source: Source) {
+  const { url, id } = source;
+  if (!url) {
+    const sourceId = id.split("/")[1];
+    return `SOURCE${sourceId}`;
+  }
+
+  const name = basename(source.url);
+  return endTruncateStr(name, 50);
+}
+
 module.exports = {
-  isJavaScript
+  isJavaScript,
+  isPretty,
+  getFilename
 };

@@ -1,25 +1,20 @@
 const constants = require("../constants");
 const { selectSource } = require("./sources");
 const { PROMISE } = require("../utils/redux/middleware/promise");
-const { Location, Frame } = require("../types");
 
 const { getExpressions } = require("../selectors");
-const { getOriginalLocation } = require("../utils/source-map");
-const { asyncMap } = require("../utils/utils");
+const { updateFrameLocations } = require("../utils/pause");
 
-async function updateFrame(state, frame) {
-  const originalLocation = await getOriginalLocation(
-    state,
-    frame.location
-  );
-
-  return Frame.update(frame, {
-    $merge: { location: Location(originalLocation) }
-  });
-}
+/**
+ * Redux actions for the pause state
+ * @module actions/pause
+ */
 
 /**
  * Debugger has just resumed
+ *
+ * @memberof actions/pause
+ * @static
  */
 function resumed() {
   return ({ dispatch, client }) => {
@@ -32,44 +27,55 @@ function resumed() {
 
 /**
  * Debugger has just paused
+ *
+ * @param {object} pauseInfo
+ * @memberof actions/pause
+ * @static
  */
 function paused(pauseInfo) {
-  return ({ dispatch, getState, client }) => {
-    let { frame, frames, why } = pauseInfo;
+  return async function({ dispatch, getState, client }) {
+    let { frames, why } = pauseInfo;
+    frames = await updateFrameLocations(frames);
+    const frame = frames[0];
 
     dispatch(evaluateExpressions());
-
-    return dispatch({
+    dispatch({
       type: constants.PAUSED,
-      [PROMISE]: (async function () {
-        frame = await updateFrame(getState(), frame);
-
-        frames = await asyncMap(frames, item => {
-          return updateFrame(getState(), item);
-        });
-
-        dispatch(selectSource(frame.location.sourceId));
-        return {
-          pauseInfo: { why, frame },
-          frames: frames
-        };
-      })()
+      pauseInfo: { why, frame },
+      frames: frames,
+      selectedFrameId: frame.id
     });
+    dispatch(selectSource(frame.location.sourceId,
+                          { line: frame.location.line }));
   };
 }
 
-function pauseOnExceptions(toggle) {
-  return ({ dispatch, getState, client }) => {
-    client.pauseOnExceptions(toggle);
-    return dispatch({
+/**
+ *
+ * @memberof actions/pause
+ * @static
+ */
+function pauseOnExceptions(
+  shouldPauseOnExceptions, shouldIgnoreCaughtExceptions) {
+  return ({ dispatch, client }) => {
+    dispatch({
       type: constants.PAUSE_ON_EXCEPTIONS,
-      toggle
+      shouldPauseOnExceptions,
+      shouldIgnoreCaughtExceptions,
+      [PROMISE]: client.pauseOnExceptions(
+        shouldPauseOnExceptions,
+        shouldIgnoreCaughtExceptions
+      )
     });
   };
 }
 
 /**
  * Debugger commands like stepOver, stepIn, stepUp
+ *
+ * @param string $0.type
+ * @memberof actions/pause
+ * @static
  */
 function command({ type }) {
   return ({ dispatch, client }) => {
@@ -84,9 +90,52 @@ function command({ type }) {
 }
 
 /**
+ * StepIn
+ * @memberof actions/pause
+ * @static
+ * @returns {Function} {@link command}
+ */
+function stepIn() {
+  return command({ type: "stepIn" });
+}
+
+/**
+ * stepOver
+ * @memberof actions/pause
+ * @static
+ * @returns {Function} {@link command}
+ */
+function stepOver() {
+  return command({ type: "stepOver" });
+}
+
+/**
+ * stepOut
+ * @memberof actions/pause
+ * @static
+ * @returns {Function} {@link command}
+ */
+function stepOut() {
+  return command({ type: "stepOut" });
+}
+
+/**
+ * resume
+ * @memberof actions/pause
+ * @static
+ * @returns {Function} {@link command}
+ */
+function resume() {
+  return command({ type: "resume" });
+}
+
+/**
  * Debugger breakOnNext command.
  * It's different from the comand action because we also want to
  * highlight the pause icon.
+ *
+ * @memberof actions/pause
+ * @static
  */
 function breakOnNext() {
   return ({ dispatch, client }) => {
@@ -101,6 +150,10 @@ function breakOnNext() {
 
 /**
  * Select a frame
+ *
+ * @param frame
+ * @memberof actions/pause
+ * @static
  */
 function selectFrame(frame) {
   return ({ dispatch }) => {
@@ -108,7 +161,7 @@ function selectFrame(frame) {
                           { line: frame.location.line }));
     dispatch({
       type: constants.SELECT_FRAME,
-      frame: frame
+      frame
     });
   };
 }
@@ -116,8 +169,11 @@ function selectFrame(frame) {
 /**
  * Load an object.
  *
+ * @param grip
  * TODO: Right now this if Firefox specific and is not implemented
  * for Chrome, which is why it takes a grip.
+ * @memberof actions/pause
+ * @static
  */
 function loadObjectProperties(grip) {
   return ({ dispatch, client }) => {
@@ -131,18 +187,32 @@ function loadObjectProperties(grip) {
 
 /**
  * Add expression for debugger to watch
- * @param expression
+ *
+ * @param {object} expression
+ * @param {number} expression.id
+ * @memberof actions/pause
+ * @static
  */
 function addExpression(expression) {
   return ({ dispatch, getState }) => {
+    const id = expression.id !== undefined ? parseInt(expression.id, 10) :
+      getExpressions(getState()).toSeq().size++;
     dispatch({
       type: constants.ADD_EXPRESSION,
-      id: expression.id || `${getExpressions(getState()).toSeq().size++}`,
+      id: id,
       input: expression.input
     });
+    dispatch(evaluateExpressions());
   };
 }
 
+/**
+ *
+ * @param {object} expression
+ * @param {number} expression.id
+ * @memberof actions/pause
+ * @static
+ */
 function updateExpression(expression) {
   return ({ dispatch }) => {
     dispatch({
@@ -153,6 +223,27 @@ function updateExpression(expression) {
   };
 }
 
+/**
+ *
+ * @param {object} expression
+ * @param {number} expression.id
+ * @memberof actions/pause
+ * @static
+ */
+function deleteExpression(expression) {
+  return ({ dispatch }) => {
+    dispatch({
+      type: constants.DELETE_EXPRESSION,
+      id: expression.id
+    });
+  };
+}
+
+/**
+ *
+ * @memberof actions/pause
+ * @static
+ */
 function evaluateExpressions() {
   return ({ dispatch, getState, client }) => {
     for (let expression of getExpressions(getState())) {
@@ -169,10 +260,15 @@ function evaluateExpressions() {
 module.exports = {
   addExpression,
   updateExpression,
+  deleteExpression,
   resumed,
   paused,
   pauseOnExceptions,
   command,
+  stepIn,
+  stepOut,
+  stepOver,
+  resume,
   breakOnNext,
   selectFrame,
   loadObjectProperties

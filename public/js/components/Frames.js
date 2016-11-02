@@ -1,11 +1,12 @@
 const React = require("react");
-const { DOM: dom } = React;
+const { DOM: dom, PropTypes } = React;
 const { div } = dom;
 const { bindActionCreators } = require("redux");
 const { connect } = require("react-redux");
+const ImPropTypes = require("react-immutable-proptypes");
 const actions = require("../actions");
 const { endTruncateStr } = require("../utils/utils");
-const { basename } = require("../utils/path");
+const { getFilename } = require("../utils/source");
 const { getFrames, getSelectedFrame, getSource } = require("../selectors");
 
 if (typeof window == "object") {
@@ -17,12 +18,11 @@ function renderFrameTitle(frame) {
 }
 
 function renderFrameLocation(frame) {
-  const url = frame.source.url ? basename(frame.source.url) : "";
-  const line = url !== "" ? `: ${frame.location.line}` : "";
-  return url !== "" ?
-    div({ className: "location" },
-      `${endTruncateStr(url, 30)}${line}`
-    ) : null;
+  const filename = getFilename(frame.source);
+  return div(
+    { className: "location" },
+    `${filename}: ${frame.location.line}`
+  );
 }
 
 function renderFrame(frame, selectedFrame, selectFrame) {
@@ -33,30 +33,80 @@ function renderFrame(frame, selectedFrame, selectFrame) {
   return dom.li(
     { key: frame.id,
       className: `frame ${selectedClass}`,
-      onClick: () => selectFrame(frame) },
+      onMouseDown: () => selectFrame(frame),
+      tabIndex: 0
+    },
     renderFrameTitle(frame),
     renderFrameLocation(frame)
   );
 }
 
-function Frames({ frames, selectedFrame, selectFrame }) {
-  return div(
-    { className: "pane frames" },
-    frames.length === 0 ?
-      div({ className: "pane-info empty" }, "Not Paused") :
-      dom.ul(null, frames.map(frame => {
+const Frames = React.createClass({
+  propTypes: {
+    frames: ImPropTypes.list.isRequired,
+    selectedFrame: PropTypes.object,
+    selectFrame: PropTypes.func.isRequired
+  },
+
+  displayName: "Frames",
+
+  getInitialState() {
+    return { showAllFrames: false };
+  },
+
+  toggleFramesDisplay() {
+    this.setState({
+      showAllFrames: !this.state.showAllFrames
+    });
+  },
+
+  render() {
+    const { frames, selectedFrame, selectFrame } = this.props;
+    const numFramesToShow = this.state.showAllFrames ? frames.length : 7;
+    let framesDisplay;
+
+    if (frames.length === 0) {
+      framesDisplay = div(
+        { className: "pane-info empty" },
+        L10N.getStr("callStack.notPaused")
+      );
+    } else if (frames.length < numFramesToShow) {
+      framesDisplay = dom.ul(null, frames.map(frame => {
         return renderFrame(frame, selectedFrame, selectFrame);
-      }))
-  );
-}
+      }));
+    } else {
+      let frameClass = "hideFrames";
+      let buttonMessage = this.state.showAllFrames
+                          ? L10N.getStr("callStack.collapse")
+                          : L10N.getStr("callStack.expand");
+
+      framesDisplay = dom.ul({ className: frameClass },
+        frames.map(frame => {
+          return renderFrame(frame, selectedFrame, selectFrame);
+        }).slice(0, numFramesToShow),
+        dom.div({
+          className: "show-more",
+          onClick: this.toggleFramesDisplay
+        }, buttonMessage)
+      );
+    }
+
+    return div(
+      { className: "pane frames" },
+      framesDisplay
+    );
+  }
+});
 
 module.exports = connect(
   state => ({
-    frames: getFrames(state).map(frame => {
-      return Object.assign({}, frame, {
-        source: getSource(state, frame.location.sourceId).toJS()
-      });
-    }),
+    frames: getFrames(state)
+      .filter(frame => getSource(state, frame.location.sourceId))
+      .map(frame => {
+        return Object.assign({}, frame, {
+          source: getSource(state, frame.location.sourceId).toJS()
+        });
+      }),
     selectedFrame: getSelectedFrame(state)
   }),
   dispatch => bindActionCreators(actions, dispatch)

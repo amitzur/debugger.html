@@ -4,13 +4,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+:root.theme-light,
+:root .theme-light {
+  --theme-search-overlays-semitransparent: rgba(221, 225, 228, 0.66);
+  --theme-faded-tab-color: #7e7e7e;
+}
+
+:root.theme-dark,
+:root .theme-dark {
+  --theme-faded-tab-color: #6e7d8c;
+}
+
 * {
   box-sizing: border-box;
 }
 
 html,
 body {
-  font-family: "SF UI Text", sans-serif;
   height: 100%;
   margin: 0;
   padding: 0;
@@ -25,13 +35,15 @@ body {
 .debugger {
   display: flex;
   flex: 1;
+  height: 100%;
 }
 
 .center-pane {
   display: flex;
   position: relative;
   flex: 1;
-  background-color: #fcfcfc;
+  background-color: var(--theme-tab-toolbar-background);
+  overflow: hidden;
 }
 
 .editor-container {
@@ -43,36 +55,40 @@ body {
   cursor: pointer;
 }
 
-.source-footer {
-  background: white;
+.search-container {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  z-index: 100;
-  width: 100px;
-  opacity: 0.9;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  z-index: 200;
+  background-color: var(--theme-search-overlays-semitransparent);
 }
 
-.source-footer .command-bar {
-  float: right;
+.search-container .autocomplete {
+  flex: 1;
 }
 
-.command-bar > span {
-  cursor: pointer;
-  margin-right: 0.7em;
-  width: 1em;
-  height: 1.1em;
-  display: inline-block;
-  text-align: center;
-  transition: opacity 200ms;
+.search-container .close-button {
+  width: 16px;
+  margin-top: 25px;
+  margin-right: 20px;
 }
 
 .welcomebox {
-  margin: 50px auto;
-  padding: 20px;
-  font-size: 1em;
-  color: var(--theme-gray-darker);
-  font-weight: lighter;
+  width: calc(100% - 1px);
+
+  /* Offsetting it by 30px for the sources-header area */
+  height: calc(100% - 30px);
+  position: absolute;
+  top: 30px;
+  left: 0;
+  padding: 50px 0;
   text-align: center;
-  width: 100%;
+  font-size: 1.25em;
+  color: var(--theme-comment-alt);
+  background-color: var(--theme-tab-toolbar-background);
+  font-weight: lighter;
+  z-index: 100;
 }

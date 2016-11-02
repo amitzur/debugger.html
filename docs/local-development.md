@@ -41,6 +41,54 @@ Hot reloading does not work all the time, but once you get a sense of its quirks
 
 It can be turned on by setting `config/local.json` with the contents `{ "hotReloading: true" }`.
 
+### Themes
+
+The local debugger supports three themes: light, dark, and firebug.
+
+You can change the theme by setting the `theme` field in `local.json` to  `light`, `dark`, or `firebug`.
+
+```json
+{ "theme": "dark" }
+```
+
+### Internationalization
+
+The Debugger supports two types of internationalization RTL (right to left) layout and L10N (localization).
+
+[L10N](https://github.com/devtools-html/debugger.html/blob/master/packages/devtools-local-toolbox/public/js/utils/L10N.js) is a global module with two methods `getStr` and `getFormatStr`.
+
+```js
+L10N.getStr("scopes.header")
+L10N.getFormatStr("editor.searchResults", index + 1, count)
+```
+
+Translated strings are added to the local [strings](https://github.com/devtools-html/debugger.html/blob/master/public/js/strings.json)
+file and m-c [debugger properties](https://dxr.mozilla.org/mozilla-central/source/devtools/client/locales/en-US/debugger.properties) file.
+
+### Flow
+
+The debugger uses Facebook's [flow](https://flowtype.org/) type checker.
+
+Rationale:
+* *code clarity* - helps team members understand the code
+* *refactoring* - guarantees functions integrate well
+* *code reviews* - adds a static check like linting
+
+**How do I run flow?**
+```
+> flow
+```
+
+**How do I see a file's coverage?**
+```
+> flow coverage --color <path to file>
+```
+
+**How do I see the Debugger's flow coverage?**
+```
+> npm run flow-coverage
+```
+
 ### StoryBook
 
 Storybook is a local development environment for react components for viewing components in different states.
@@ -50,6 +98,7 @@ Storybook is a local development environment for react components for viewing co
 + quickly work on a component with hot reloading
 
 **Getting Started:**
+* install storybook `npm i -g @kadira/storybook`
 + start storybook `npm run storybook`
 + edit a component story in `public/js/components/stories`
 

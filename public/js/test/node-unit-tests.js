@@ -1,36 +1,80 @@
-const glob = require("glob").sync;
-const path = require("path");
-const Mocha = require("mocha");
-const getConfig = require("../../../config/config").getConfig;
-const setConfig = require("../../../config/feature").setConfig;
+"use strict"; // eslint-disable-line
 
 require("amd-loader");
 require("babel-register");
+const mock = require("mock-require");
 
-setConfig(getConfig());
+const glob = require("glob").sync;
+const path = require("path");
+const Mocha = require("mocha");
+const minimist = require("minimist");
+
+const getConfig = require("../../../packages/devtools-config/src/config").getConfig;
+const setConfig = require("devtools-config").setConfig;
+
+// Mock various functions. This allows tests to load files from a
+// local directory easily.
+mock("devtools-network-request", require("../../../packages/devtools-network-request/stubNetworkRequest"));
+mock("../utils/prefs", { prefs: { clientSourceMapsEnabled: true }});
+
+const baseWorkerURL = path.join(__dirname, "../../build/");
+const packagesPath = path.join(__dirname, "../../../packages");
+
+setConfig(Object.assign({}, getConfig(), { baseWorkerURL }));
+
+const args = minimist(process.argv.slice(2),
+{ boolean: ["ci", "dots"] });
+
+const isCI = args.ci;
+const useDots = args.dots;
 
 const webpack = require("webpack");
 const webpackConfig = require("../../../webpack.config");
 delete webpackConfig.entry.bundle;
 
-const Worker = require("workerjs");
-global.Worker = function(_path) {
-  const workerPath = path.join(__dirname, "../../../" + _path);
-  return new Worker(workerPath);
-};
+// The source map worker is compiled with webpack (and mock-require
+// doesn't work in workers) so mock it with an alias, and tweak a few
+// things to make the stub fetcher work in node.
+webpackConfig.resolve.alias["devtools-network-request"] =
+  path.resolve(packagesPath, "devtools-network-request/stubNetworkRequest.js");
 
-// disable css requires
-require.extensions[".css"] = function() {
-  return {};
-};
+webpackConfig.externals = [{ fs: "commonjs fs" }];
+webpackConfig.node = { __dirname: false };
 
-const testFiles = glob("public/js/**/tests/*.js")
-                  .concat(glob("config/tests/*.js"));
+global.Worker = require("workerjs");
+
+// disable unecessary require calls
+require.extensions[".css"] = () => {};
+require.extensions[".svg"] = () => {};
+
+let testFiles;
+if (args._.length) {
+  testFiles = args._.reduce((paths, p) => paths.concat(glob(p)), []);
+} else {
+  testFiles = glob("public/js/actions/tests/*.js")
+    .concat(glob("public/js/reducers/tests/*.js"))
+    .concat(glob("public/js/utils/tests/*.js"))
+    .concat(glob("config/tests/*.js"));
+}
 
 const mocha = new Mocha();
+
+if (isCI) {
+  mocha.reporter("mocha-circleci-reporter");
+} else if (useDots) {
+  mocha.reporter("dot");
+}
+
 testFiles.forEach(file => mocha.addFile(file));
 
-webpack(webpackConfig).run(function(err, stats) {
+webpack(webpackConfig).run(function(_, stats) {
+  if (stats.compilation.errors.length) {
+    stats.compilation.errors.forEach(err => {
+      console.log(err.message);
+    });
+    return;
+  }
+
   mocha.run(function(failures) {
     process.exit(failures);
   });

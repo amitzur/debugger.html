@@ -2,134 +2,90 @@ const React = require("react");
 const { DOM: dom, PropTypes, createFactory } = React;
 const { connect } = require("react-redux");
 const { bindActionCreators } = require("redux");
+const { cmdString } = require("../utils/text");
 const actions = require("../actions");
+const { getSources, getSelectedSource } = require("../selectors");
+
+const { KeyShortcuts } = require("devtools-sham-modules");
+const shortcuts = new KeyShortcuts({ window });
 
 require("./App.css");
-require("../lib/variables.css");
+require("./menu.css");
+require("./SplitBox.css");
+require("./reps.css");
+let { SplitBox } = require("devtools-modules");
+SplitBox = createFactory(SplitBox);
+
+const SourceSearch = createFactory(require("./SourceSearch"));
 const Sources = createFactory(require("./Sources"));
 const Editor = createFactory(require("./Editor"));
-const SplitBox = createFactory(require("./SplitBox"));
 const RightSidebar = createFactory(require("./RightSidebar"));
 const SourceTabs = createFactory(require("./SourceTabs"));
-const SourceFooter = createFactory(require("./SourceFooter"));
-const Autocomplete = createFactory(require("./Autocomplete"));
-const { getSelectedSource, getSources } = require("../selectors");
-const { endTruncateStr } = require("../utils/utils");
-const { KeyShortcuts } = require("../lib/devtools-sham/client/shared/key-shortcuts");
 
 const App = React.createClass({
   propTypes: {
     sources: PropTypes.object,
+    selectSource: PropTypes.func,
     selectedSource: PropTypes.object,
-    selectSource: PropTypes.func
   },
 
   displayName: "App",
 
-  getInitialState() {
-    return {
-      searchOn: false
-    };
-  },
-
-  componentDidMount() {
-    this.shortcuts = new KeyShortcuts({ window });
-    this.shortcuts.on("Cmd+P", this.toggleSourcesSearch);
-    window.addEventListener("keydown", this.setSearchState);
-  },
-
-  componentWillUnmount() {
-    this.shortcuts.off("Cmd+P", this.toggleSourcesSearch);
-    window.removeEventListener("keydown", this.setSearchState);
-  },
-
-  toggleSourcesSearch(key, e) {
-    e.preventDefault();
-    this.setState({ searchOn: !this.state.searchOn });
-  },
-
-  setSearchState(e) {
-    if (e.key === "Escape") {
-      this.setState({ searchOn: false });
-      e.preventDefault();
-    }
-  },
-
-  renderSourcesSearch() {
-    function getSourcePath(source) {
-      const url = source.get("url") || "";
-      const path = (new URL(url)).pathname;
-      return endTruncateStr(path, 50);
-    }
-
-    function searchResults(sources) {
-      return sources.valueSeq()
-        .filter(source => !!source.get("url"))
-        .map(source => ({
-          value: getSourcePath(source),
-          title: getSourcePath(source).split("/").pop(),
-          subtitle: getSourcePath(source),
-          id: source.get("id")
-        }))
-        .toJS();
-    }
-
-    return Autocomplete({
-      selectItem: result => {
-        this.props.selectSource(result.id);
-        this.setState({ searchOn: false });
-      },
-      items: searchResults(this.props.sources)
-    });
-  },
-
-  renderEditor() {
-    return dom.div(
-      { className: "editor-container" },
-      SourceTabs(),
-      Editor(),
-      SourceFooter()
-    );
+  getChildContext() {
+    return { shortcuts };
   },
 
   renderWelcomeBox() {
     return dom.div(
       { className: "welcomebox" },
-      "Want to find a file? (Cmd + P)"
+      L10N.getFormatStr("welcome.search", cmdString() + "+P")
     );
   },
 
   renderCenterPane() {
-    let centerPane;
-    if (this.state.searchOn) {
-      centerPane = this.renderSourcesSearch();
-    } else if (this.props.selectedSource) {
-      centerPane = this.renderEditor();
-    } else {
-      centerPane = this.renderWelcomeBox();
-    }
-
-    return dom.div({ className: "center-pane" }, centerPane);
+    return dom.div(
+      { className: "center-pane" },
+      dom.div(
+        { className: "editor-container" },
+        SourceTabs(),
+        Editor(),
+        !this.props.selectedSource ? this.renderWelcomeBox() : null,
+        SourceSearch()
+      )
+    );
   },
 
   render: function() {
-    return dom.div({ className: "theme-light debugger" },
+    return dom.div(
+      { className: "debugger" },
       SplitBox({
-        initialWidth: 300,
-        left: Sources({ sources: this.props.sources }),
-        right: SplitBox({
-          initialWidth: 300,
-          rightFlex: true,
-          left: this.renderCenterPane(this.props),
-          right: RightSidebar()
+        style: { width: "100vw" },
+        initialSize: "300px",
+        minSize: 10,
+        maxSize: "50%",
+        splitterSize: 1,
+        startPanel: Sources({ sources: this.props.sources }),
+        endPanel: SplitBox({
+          initialSize: "300px",
+          minSize: 10,
+          maxSize: "80%",
+          splitterSize: 1,
+          endPanelControl: true,
+          startPanel: this.renderCenterPane(this.props),
+          endPanel: RightSidebar()
         })
       })
     );
   }
 });
 
+App.childContextTypes = {
+  shortcuts: PropTypes.object
+};
+
 module.exports = connect(
   state => ({ sources: getSources(state),
-              selectedSource: getSelectedSource(state) }),
+              selectedSource: getSelectedSource(state),
+            }),
   dispatch => bindActionCreators(actions, dispatch)
 )(App);

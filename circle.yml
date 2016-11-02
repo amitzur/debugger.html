@@ -1,11 +1,23 @@
+machine:
+  node:
+    version: 6.3
+  services:
+    - docker
+
+checkout:
+  post:
+    - mv configs/ci.json configs/local.json:
+        pwd: packages/devtools-config
 test:
   override:
     - mkdir -p $CIRCLE_TEST_REPORTS/mocha
-    - node_modules/.bin/mocha --compilers js:babel-register --reporter mocha-circleci-reporter --reporter-options mochaFile=$CIRCLE_TEST_REPORTS/mocha/junit.xml public/js/test/node-unit-tests.js
-    - node_modules/.bin/cypress ci b07646ab-ddfa-442b-b63f-aebf00452de8
-    - node_modules/.bin/cypress ci b07646ab-ddfa-442b-b63f-aebf00452de8
+    - node public/js/test/node-unit-tests.js --ci
+    - ./bin/run-mochitests-docker
+    - npm run firefox-unit-test
   pre:
-    - DEBUG_CHROME=true node bin/development-server.js:
+    - node bin/mocha-server.js:
+        background: true
+    - npm start:
         background: true
     - node bin/firefox-driver --start:
         background: true
@@ -16,13 +28,18 @@ test:
     - npm run lint-css
     - npm run lint-js
     - npm run flow
-    # - npm run karma
+
 dependencies:
+  cache_directories:
+    - "~/downloads"
   override:
-    - npm install
+    - npm i -g jasonlaster/lerna
+    - lerna bootstrap
     - ./bin/install-chrome
     - ./bin/install-firefox
-    - node_modules/.bin/cypress install
-machine:
-  node:
-    version: 5.10.1
+    - docker pull jlongster/mochitest-runner
+experimental:
+  notify:
+    branches:
+      only:
+        - master

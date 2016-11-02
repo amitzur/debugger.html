@@ -28,11 +28,11 @@ Search for [isEnabled](https://github.com/devtools-html/debugger.html/search?utf
 
 ```js
 // within the components directory you can require isEnabled
-const { isEnabled } = require("../feature");
+const { isEnabled } = require("devtools-config");
 
 // feature check can be done in render() method
 render() {
-  if (!isEnabled("features.pokemon-go")) {
+  if (!isEnabled("pokemon-go")) {
     return null;
   }
   return dom.div(null, 'pokestop!');

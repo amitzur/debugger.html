@@ -5,7 +5,7 @@
 
 .accordion ._header {
   background-color: var(--theme-toolbar-background);
-  border-bottom: 1px solid #d0d0d0;
+  border-bottom: 1px solid var(--theme-splitter-color);
   cursor: pointer;
   font-size: 12px;
   padding: 5px;
@@ -20,24 +20,14 @@
 }
 
 .accordion ._header:hover {
-  background-color: var(--theme-selection-color);
-}
-
-/* TODO: change this class name */
-.accordion .isvg svg {
-  fill: var(--theme-splitter-color);
-  float: left;
-  margin-right: 3px;
-  margin-top: 3px;
-  transform: rotate(-90deg);
-  transition: all 0.25s ease;
-  width: 10px;
+  background-color: var(--theme-search-overlays-semitransparent);
 }
 
 .accordion ._header:hover svg {
-  fill: var(--theme-gray-darker);
+  fill: var(--theme-comment-alt);
 }
 
 .accordion ._content {
-  border-bottom: 1px solid #d0d0d0;
+  border-bottom: 1px solid var(--theme-splitter-color);
+  font-size: 12px;
 }

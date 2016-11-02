@@ -1,12 +1,28 @@
 const constants = require("../constants");
-const { clearData } = require("../utils/source-map");
+const { clearSourceMaps } = require("../utils/source-map");
+const { clearDocuments } = require("../utils/source-documents");
 
+/**
+ * Redux actions for the navigation state
+ * @module actions/navigation
+ */
+
+/**
+ * @memberof actions/navigation
+ * @static
+ */
 function willNavigate() {
-  clearData();
+  clearSourceMaps();
+  clearDocuments();
+
   return { type: constants.NAVIGATE };
 }
 
-function navigate() {
+/**
+ * @memberof actions/navigation
+ * @static
+ */
+function navigated() {
   return ({ dispatch }) => {
     // We need to load all the sources again because they might have
     // come from bfcache, so we won't get a `newSource` notification.
@@ -21,5 +37,5 @@ function navigate() {
 
 module.exports = {
   willNavigate,
-  navigate
+  navigated
 };

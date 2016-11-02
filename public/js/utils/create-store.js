@@ -1,14 +1,32 @@
+// @flow
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* global window */
 
+/**
+ * Redux store utils
+ * @module utils/create-store
+ */
+
 const { createStore, applyMiddleware } = require("redux");
-const { waitUntilService } = require("devtools/client/shared/redux/middleware/wait-service");
-const { log } = require("devtools/client/shared/redux/middleware/log");
+const { waitUntilService } = require("./redux/middleware/wait-service");
+const { log } = require("./redux/middleware/log");
 const { history } = require("./redux/middleware/history");
 const { promise } = require("./redux/middleware/promise");
 const { thunk } = require("./redux/middleware/thunk");
+
+/**
+ * @memberof utils/create-store
+ * @static
+ */
+type ReduxStoreOptions = {
+  makeThunkArgs?: Function,
+  history?: boolean,
+  middleware?: Function[],
+  log?: boolean
+};
 
 /**
  * This creates a dispatcher with all the standard middleware in place
@@ -20,8 +38,10 @@ const { thunk } = require("./redux/middleware/thunk");
  *        - history: an array to store every action in. Should only be
  *                   used in tests.
  *        - middleware: array of middleware to be included in the redux store
+ * @memberof utils/create-store
+ * @static
  */
-const configureStore = (opts = {}) => {
+const configureStore = (opts: ReduxStoreOptions = {}) => {
   const middleware = [
     thunk(opts.makeThunkArgs),
     promise,

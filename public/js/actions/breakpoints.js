@@ -3,35 +3,50 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**
+ * Redux actions for breakpoints
+ * @module actions/breakpoints
+ */
+
 const constants = require("../constants");
 const { PROMISE } = require("../utils/redux/middleware/promise");
-const { getBreakpoint, getBreakpoints } = require("../selectors");
+const { getBreakpoint, getBreakpoints, getSource } = require("../selectors");
 
-const { getOriginalLocation, getGeneratedLocation
-      } = require("../utils/source-map");
+const {
+  getOriginalLocation, getGeneratedLocation, isOriginalId
+} = require("../utils/source-map");
 
-import type { Location } from "./types";
+import type { ThunkArgs } from "./types";
+import type { Location } from "../types";
 
-type ThunkArgs = {
-  dispatch: any,
-  getState: any,
-  client: any
-}
 function _breakpointExists(state, location: Location) {
   const currentBp = getBreakpoint(state, location);
   return currentBp && !currentBp.disabled;
 }
 
 function _getOrCreateBreakpoint(state, location, condition) {
-  return getBreakpoint(state, location) || { location, condition };
+  return getBreakpoint(state, location) || { location, condition, text: "" };
 }
 
+/**
+ * Enabling a breakpoint calls {@link addBreakpoint}
+ * which will reuse the existing breakpoint information that is stored.
+ *
+ * @memberof actions/breakpoints
+ * @static
+ */
 function enableBreakpoint(location: Location) {
-  // Enabling is exactly the same as adding. It will use the existing
-  // breakpoint that still stored.
   return addBreakpoint(location);
 }
 
+/**
+ * Add a new or enable an existing breakpoint
+ *
+ * @memberof actions/breakpoints
+ * @static
+ * @param {String} $1.condition Conditional breakpoint condition value
+ * @param {Function} $1.getTextForLine Get the text to represent the line
+ */
 function addBreakpoint(location: Location,
                        { condition, getTextForLine } : any = {}) {
   return ({ dispatch, getState, client }: ThunkArgs) => {
@@ -45,14 +60,19 @@ function addBreakpoint(location: Location,
       type: constants.ADD_BREAKPOINT,
       breakpoint: bp,
       condition: condition,
-      [PROMISE]: (async function () {
-        location = await getGeneratedLocation(getState(), bp.location);
+      [PROMISE]: (async function() {
+        if (isOriginalId(bp.location.sourceId)) {
+          const source = getSource(getState(), bp.location.sourceId);
+          location = await getGeneratedLocation(bp.location, source.toJS());
+        }
+
         let { id, actualLocation } = await client.setBreakpoint(
           location,
-          bp.condition
+          bp.condition,
+          isOriginalId(bp.location.sourceId)
         );
 
-        actualLocation = await getOriginalLocation(getState(), actualLocation);
+        actualLocation = await getOriginalLocation(actualLocation);
 
         // If this breakpoint is being re-enabled, it already has a
         // text snippet.
@@ -67,10 +87,22 @@ function addBreakpoint(location: Location,
   };
 }
 
+/**
+ * Disable a single breakpoint
+ *
+ * @memberof actions/breakpoints
+ * @static
+ */
 function disableBreakpoint(location: Location) {
   return _removeOrDisableBreakpoint(location, true);
 }
 
+/**
+ * Remove a single breakpoint
+ *
+ * @memberof actions/breakpoints
+ * @static
+ */
 function removeBreakpoint(location: Location) {
   return _removeOrDisableBreakpoint(location);
 }
@@ -106,47 +138,67 @@ function _removeOrDisableBreakpoint(location, isDisabled) {
   };
 }
 
-function removeAllBreakpoints() {
+/**
+ * Toggle All Breakpoints
+ *
+ * @memberof actions/breakpoints
+ * @static
+ */
+function toggleAllBreakpoints(shouldDisableBreakpoints: boolean) {
   return ({ dispatch, getState }: ThunkArgs) => {
     const breakpoints = getBreakpoints(getState());
-    const activeBreakpoints = breakpoints.filter(bp => !bp.disabled);
-    activeBreakpoints.forEach(bp => removeBreakpoint(bp.location));
+    return dispatch({
+      type: constants.TOGGLE_BREAKPOINTS,
+      shouldDisableBreakpoints,
+      [PROMISE]: (async function() {
+        for (let [, breakpoint] of breakpoints) {
+          if (shouldDisableBreakpoints) {
+            await dispatch(disableBreakpoint(breakpoint.location));
+          } else {
+            await dispatch(enableBreakpoint(breakpoint.location));
+          }
+        }
+      })()
+    });
   };
 }
 
 /**
  * Update the condition of a breakpoint.
+ *  **NOT IMPLEMENTED**
  *
- * @param object aLocation
+ * @throws {Error} "not implemented"
+ * @memberof actions/breakpoints
+ * @static
+ * @param {Location} location
  *        @see DebuggerController.Breakpoints.addBreakpoint
- * @param string aClients
+ * @param {string} condition
  *        The condition to set on the breakpoint
- * @return object
- *         A promise that will be resolved with the breakpoint client
  */
 function setBreakpointCondition(location: Location, condition: string) {
-  throw new Error("not implemented");
+  return ({ dispatch, getState, client }: ThunkArgs) => {
+    const bp = getBreakpoint(getState(), location);
+    if (!bp) {
+      throw new Error("Breakpoint does not exist at the specified location");
+    }
+    if (bp.loading) {
+      // TODO(jwl): when this function is called, make sure the action
+      // creator waits for the breakpoint to exist
+      throw new Error("breakpoint must be saved");
+    }
 
-  // return ({ dispatch, getState, client }) => {
-  //   const bp = getBreakpoint(getState(), location);
-  //   if (!bp) {
-  //     throw new Error("Breakpoint does not exist at the specified location");
-  //   }
-  //   if (bp.get("loading")) {
-  //     // TODO(jwl): when this function is called, make sure the action
-  //     // creator waits for the breakpoint to exist
-  //     throw new Error("breakpoint must be saved");
-  //   }
-
-  //   return dispatch({
-  //     type: constants.SET_BREAKPOINT_CONDITION,
-  //     breakpoint: bp,
-  //     condition: condition,
-  //     [PROMISE]: Task.spawn(function* () {
-  //       yield client.setBreakpointCondition(bp.get("id"), condition);
-  //     })
-  //   });
-  // };
+    return dispatch({
+      type: constants.SET_BREAKPOINT_CONDITION,
+      breakpoint: bp,
+      condition: condition,
+      [PROMISE]: client.setBreakpointCondition(
+        bp.id,
+        location,
+        condition,
+        isOriginalId(bp.location.sourceId)
+      )
+    });
+  };
 }
 
 module.exports = {
@@ -154,6 +206,6 @@ module.exports = {
   addBreakpoint,
   disableBreakpoint,
   removeBreakpoint,
-  removeAllBreakpoints,
+  toggleAllBreakpoints,
   setBreakpointCondition
 };

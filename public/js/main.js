@@ -1,33 +1,23 @@
-/* global window, document, DebuggerConfig */
-
-const { bindActionCreators, combineReducers } = require("redux");
-const { Provider } = require("react-redux");
-const ReactDOM = require("react-dom");
 const React = require("react");
+const { bindActionCreators, combineReducers } = require("redux");
+const ReactDOM = require("react-dom");
 
-const DevToolsUtils = require("devtools-sham/shared/DevToolsUtils");
-const AppConstants = require("devtools-sham/sham/appconstants").AppConstants;
-const { injectGlobals } = require("./utils/debug");
-const { isEnabled, isFirefoxPanel,
-        isDevelopment, setConfig } = require("../../config/feature");
+const {
+  client: { getClient, firefox },
+  renderRoot, bootstrap
+} = require("devtools-local-toolbox");
 
-setConfig(DebuggerConfig);
+const { getValue, isFirefoxPanel } = require("devtools-config");
 
-// Set various flags before requiring app code.
-if (isEnabled("logging.client")) {
-  DevToolsUtils.dumpn.wantLogging = true;
-}
-
-const { getClient, connectClients, startDebugging } = require("./clients");
-const firefox = require("./clients/firefox");
 const configureStore = require("./utils/create-store");
-const reducers = require("./reducers");
 
-const Tabs = require("./components/Tabs");
+const reducers = require("./reducers");
+const selectors = require("./selectors");
+
 const App = require("./components/App");
 
 const createStore = configureStore({
-  log: false,
+  log: getValue("logging.actions"),
   makeThunkArgs: (args, state) => {
     return Object.assign({}, args, { client: getClient(state) });
   }
@@ -36,65 +26,51 @@ const createStore = configureStore({
 const store = createStore(combineReducers(reducers));
 const actions = bindActionCreators(require("./actions"), store.dispatch);
 
-if (isDevelopment()) {
-  AppConstants.DEBUG_JS_MODULES = true;
-  injectGlobals({ store });
+if (!isFirefoxPanel()) {
+  L10N.setBundle(require("./strings.json"));
 }
 
-function renderRoot(component) {
+window.appStore = store;
+
+// Expose the bound actions so external things can do things like
+// selecting a source.
+window.actions = {
+  selectSource: actions.selectSource,
+  selectSourceURL: actions.selectSourceURL
+};
+
+function unmountRoot() {
   const mount = document.querySelector("#mount");
-
-  // bail in test environments that do not have a mount
-  if (!mount) {
-    return;
-  }
-
-  ReactDOM.render(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(component)
-    ),
-    mount
-  );
+  ReactDOM.unmountComponentAtNode(mount);
 }
 
-function getTargetFromQuery() {
-  const href = window.location.href;
-  const nodeMatch = href.match(/ws=([^&#]*)/);
-  const firefoxMatch = href.match(/firefox-tab=([^&#]*)/);
-  const chromeMatch = href.match(/chrome-tab=([^&#]*)/);
+if (isFirefoxPanel()) {
+  const sourceMap = require("./utils/source-map");
+  const prettyPrint = require("./utils/pretty-print");
 
-  if (nodeMatch) {
-    return { type: "node", param: nodeMatch[1] };
-  } else if (firefoxMatch) {
-    return { type: "firefox", param: firefoxMatch[1] };
-  } else if (chromeMatch) {
-    return { type: "chrome", param: chromeMatch[1] };
-  }
-
-  return null;
-}
-
-const connTarget = getTargetFromQuery();
-if (connTarget) {
-  startDebugging(connTarget, actions).then((tabs) => {
-    actions.newTabs(tabs);
-    actions.selectTab({ id: connTarget.param });
-    renderRoot(App);
-  });
-} else if (isFirefoxPanel()) {
-  // The toolbox already provides the tab to debug.
   module.exports = {
-    setThreadClient: firefox.setThreadClient,
-    setTabTarget: firefox.setTabTarget,
-    initPage: firefox.initPage,
-    getActions: () => actions,
-    renderApp: () => renderRoot(App)
+    bootstrap: ({ threadClient, tabTarget, toolbox }) => {
+      // TODO (jlast) remove when the panel has L10N
+      if (!window.L10N) {
+        window.L10N = require("../../packages/devtools-local-toolbox/public/js/utils/L10N");
+        L10N.setBundle(require("./strings.json"));
+      }
+
+      firefox.setThreadClient(threadClient);
+      firefox.setTabTarget(tabTarget);
+      renderRoot(React, ReactDOM, App, store);
+      return firefox.initPage(actions);
+    },
+    destroy: () => {
+      unmountRoot();
+      sourceMap.destroyWorker();
+      prettyPrint.destroyWorker();
+    },
+    store: store,
+    actions: actions,
+    selectors: selectors,
+    client: firefox.clientCommands
   };
 } else {
-  connectClients().then(tabs => {
-    actions.newTabs(tabs);
-    renderRoot(Tabs);
-  });
+  bootstrap(React, ReactDOM, App, actions, store);
 }

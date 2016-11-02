@@ -1,133 +1,130 @@
+// @flow
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**
+ * Redux actions for the sources state
+ * @module actions/sources
+ */
+
 const defer = require("../utils/defer");
 const { PROMISE } = require("../utils/redux/middleware/promise");
-const { Task } = require("../utils/task");
-const { isJavaScript } = require("../utils/source");
-const { networkRequest } = require("../utils/networkRequest");
-const { workerTask } = require("../utils/utils");
+const assert = require("../utils/assert");
+const { updateFrameLocations } = require("../utils/pause");
+const {
+  getOriginalURLs, getOriginalSourceText,
+  generatedToOriginalId, isOriginalId,
+  isGeneratedId, applySourceMap, shouldSourceMap
+} = require("../utils/source-map");
+
+const { prettyPrint } = require("../utils/pretty-print");
 
 const constants = require("../constants");
-const invariant = require("invariant");
-const { isEnabled } = require("../feature");
-
-const {
-  createOriginalSources, getOriginalSourceTexts,
-  createSourceMap, makeOriginalSource,
-  getGeneratedSource
-} = require("../utils/source-map");
+const { isEnabled } = require("devtools-config");
+const { removeDocument } = require("../utils/source-documents");
 
 const {
   getSource, getSourceByURL, getSourceText,
-  getPendingSelectedSourceURL,
-  getSourceMap, getSourceMapURL
+  getPendingSelectedLocation, getFrames
 } = require("../selectors");
 
-function _shouldSourceMap(generatedSource) {
-  return isEnabled("features.sourceMaps") && generatedSource.sourceMapURL;
-}
-
-function _addSource(source) {
-  return {
-    type: constants.ADD_SOURCE,
-    source
-  };
-}
-
-async function _prettyPrintSource({ source, sourceText, url }) {
-  const contentType = sourceText ? sourceText.contentType : null;
-  const indent = 2;
-
-  invariant(
-    isJavaScript(source.url, contentType),
-    "Can't prettify non-javascript files."
-  );
-
-  const { code, mappings } = await workerTask(
-    new Worker("public/build/pretty-print-worker.js"),
-    {
-      url,
-      indent,
-      source: sourceText.text
-    }
-  );
-
-  await createSourceMap({ source, mappings, code });
-
-  return code;
-}
+import type { Source } from "../types";
+import type { ThunkArgs } from "./types";
 
 /**
  * Handler for the debugger client's unsolicited newSource notification.
+ * @memberof actions/sources
+ * @static
  */
-function newSource(source) {
-  return ({ dispatch, getState }) => {
-    if (_shouldSourceMap(source)) {
+function newSource(source: Source) {
+  return ({ dispatch, getState }: ThunkArgs) => {
+    if (shouldSourceMap()) {
       dispatch(loadSourceMap(source));
     }
 
-    dispatch(_addSource(source));
+    dispatch({
+      type: constants.ADD_SOURCE,
+      source
+    });
 
     // If a request has been made to show this source, go ahead and
     // select it.
-    const pendingURL = getPendingSelectedSourceURL(getState());
-    if (pendingURL === source.url) {
-      dispatch(selectSource(source.id));
+    const pendingLocation = getPendingSelectedLocation(getState());
+    if (pendingLocation && pendingLocation.url === source.url) {
+      dispatch(selectSource(source.id, { line: pendingLocation.line }));
     }
   };
 }
 
+function newSources(sources: Source[]) {
+  return ({ dispatch, getState }: ThunkArgs) => {
+    sources.filter(source => !getSource(getState(), source.id))
+      .forEach(source => dispatch(newSource(source)));
+  };
+}
+
+/**
+ * @memberof actions/sources
+ * @static
+ */
 function loadSourceMap(generatedSource) {
-  return ({ dispatch, getState }) => {
-    let sourceMap = getSourceMap(getState(), generatedSource.id);
-    if (sourceMap) {
+  return async function({ dispatch, getState }: ThunkArgs) {
+    const urls = await getOriginalURLs(generatedSource);
+    if (!urls) {
+      // If this source doesn't have a sourcemap, do nothing.
       return;
     }
 
-    dispatch({
-      type: constants.LOAD_SOURCE_MAP,
-      source: generatedSource,
-      [PROMISE]: (async function () {
-        const sourceMapURL = getSourceMapURL(getState(), generatedSource);
-        sourceMap = await networkRequest(sourceMapURL);
-
-        const originalSources = await createOriginalSources(
-          generatedSource,
-          sourceMap
-        );
-
-        originalSources.forEach(s => dispatch(newSource(s)));
-
-        return { sourceMap };
-      })()
+    const originalSources = urls.map(originalUrl => {
+      return {
+        url: originalUrl,
+        id: generatedToOriginalId(generatedSource.id, originalUrl),
+        isPrettyPrinted: false
+      };
     });
+
+    originalSources.forEach(s => dispatch(newSource(s)));
   };
 }
+
+type SelectSourceOptions = {
+  tabIndex?: number,
+  line?: number
+};
 
 /**
  * Deterministically select a source that has a given URL. This will
  * work regardless of the connection status or if the source exists
  * yet. This exists mostly for external things to interact with the
  * debugger.
+ *
+ * @memberof actions/sources
+ * @static
  */
-function selectSourceURL(url) {
-  return ({ dispatch, getState }) => {
+function selectSourceURL(url: string, options: SelectSourceOptions = {}) {
+  return ({ dispatch, getState }: ThunkArgs) => {
     const source = getSourceByURL(getState(), url);
     if (source) {
-      dispatch(selectSource(source.get("id")));
+      dispatch(selectSource(source.get("id"), options));
     } else {
       dispatch({
         type: constants.SELECT_SOURCE_URL,
-        url: url
+        url: url,
+        tabIndex: options.tabIndex,
+        line: options.line
       });
     }
   };
 }
 
-function selectSource(id, options = {}) {
-  return ({ dispatch, getState, client }) => {
+/**
+ * @memberof actions/sources
+ * @static
+ */
+function selectSource(id: string, options: SelectSourceOptions = {}) {
+  return ({ dispatch, getState, client }: ThunkArgs) => {
     if (!client) {
       // No connection, do nothing. This happens when the debugger is
       // shut down too fast and it tries to display a default source.
@@ -142,43 +139,21 @@ function selectSource(id, options = {}) {
     dispatch({
       type: constants.SELECT_SOURCE,
       source: source,
-      options
+      tabIndex: options.tabIndex,
+      line: options.line
     });
-  };
-}
-
-function closeTab(id) {
-  return {
-    type: constants.CLOSE_TAB,
-    id: id,
   };
 }
 
 /**
- * Set the black boxed status of the given source.
- *
- * @param Object aSource
- *        The source form.
- * @param bool aBlackBoxFlag
- *        True to black box the source, false to un-black box it.
- * @returns Promise
- *          A promize that resolves to [aSource, isBlackBoxed] or rejects to
- *          [aSource, error].
+ * @memberof actions/sources
+ * @static
  */
-function blackbox(source, shouldBlackBox) {
-  return ({ dispatch, client }) => {
-    dispatch({
-      type: constants.BLACKBOX,
-      source: source,
-      [PROMISE]: Task.spawn(function* () {
-        yield shouldBlackBox ?
-          client.blackBox(source.id) :
-          client.unblackBox(source.id);
-        return {
-          isBlackBoxed: shouldBlackBox
-        };
-      })
-    });
+function closeTab(id: string) {
+  removeDocument(id);
+  return {
+    type: constants.CLOSE_TAB,
+    id: id,
   };
 }
 
@@ -187,51 +162,61 @@ function blackbox(source, shouldBlackBox) {
  * |getText| will return the pretty-toggled text. Nothing will happen for
  * non-javascript files.
  *
- * @param Object aSource
- *        The source form from the RDP.
+ * @memberof actions/sources
+ * @static
+ * @param string id The source form from the RDP.
  * @returns Promise
  *          A promise that resolves to [aSource, prettyText] or rejects to
  *          [aSource, error].
  */
-function togglePrettyPrint(id) {
-  return ({ dispatch, getState, client }) => {
-    const source = getSource(getState(), id).toJS();
+function togglePrettyPrint(sourceId: string) {
+  return ({ dispatch, getState, client }: ThunkArgs) => {
+    const source = getSource(getState(), sourceId).toJS();
+    const sourceText = getSourceText(getState(), sourceId).toJS();
 
-    if (!isEnabled("features.prettyPrint") || source.isPrettyPrinted) {
+    if (!isEnabled("prettyPrint") || sourceText.loading) {
       return {};
     }
 
+    assert(isGeneratedId(sourceId),
+           "Pretty-printing only allowed on generated sources");
+
     const url = source.url + ":formatted";
-    const originalSource = makeOriginalSource({ url, source });
-    dispatch(_addSource(originalSource));
+    const id = generatedToOriginalId(source.id, url);
+    const originalSource = { url, id, isPrettyPrinted: false };
+    dispatch({
+      type: constants.ADD_SOURCE,
+      source: originalSource
+    });
 
     return dispatch({
       type: constants.TOGGLE_PRETTY_PRINT,
-      source,
-      originalSource,
-      [PROMISE]: (async function () {
-        const sourceText = getSourceText(getState(), source.id).toJS();
-        const text = await _prettyPrintSource({ source, sourceText, url });
+      source: originalSource,
+      [PROMISE]: (async function() {
+        const { code, mappings } = await prettyPrint({
+          source, sourceText, url
+        });
+        await applySourceMap(source.id, url, code, mappings);
 
+        const frames = await updateFrameLocations(getFrames(getState()));
         dispatch(selectSource(originalSource.id));
 
-        const originalSourceText = {
-          id: originalSource.id,
-          contentType: "text/javascript",
-          text
-        };
-
         return {
-          isPrettyPrinted: true,
-          sourceText: originalSourceText
+          text: code,
+          contentType: "text/javascript",
+          frames
         };
       })()
     });
   };
 }
 
-function loadSourceText(source) {
-  return ({ dispatch, getState, client }) => {
+/**
+ * @memberof actions/sources
+ * @static
+ */
+function loadSourceText(source: Source) {
+  return ({ dispatch, getState, client }: ThunkArgs) => {
     // Fetch the source text only once.
     let textInfo = getSourceText(getState(), source.id);
     if (textInfo) {
@@ -242,27 +227,16 @@ function loadSourceText(source) {
     return dispatch({
       type: constants.LOAD_SOURCE_TEXT,
       source: source,
-      [PROMISE]: (async function () {
-        const generatedSource = await getGeneratedSource(
-          getState(),
-          source
-        );
+      [PROMISE]: (async function() {
+        if (isOriginalId(source.id)) {
+          return await getOriginalSourceText(source);
+        }
 
-        const response = await client.sourceContents(
-          generatedSource.id
-        );
-
-        const generatedSourceText = {
+        const response = await client.sourceContents(source.id);
+        return {
           text: response.source,
-          contentType: response.contentType || "text/javascript",
-          id: generatedSource.id
+          contentType: response.contentType || "text/javascript"
         };
-
-        const originalSourceTexts = await getOriginalSourceTexts(
-          getState(),
-          generatedSource,
-          generatedSourceText.text
-        );
 
         // Automatically pretty print if enabled and the test is
         // detected to be "minified"
@@ -271,11 +245,6 @@ function loadSourceText(source) {
         //     SourceUtils.isMinified(source.id, response.source)) {
         //   dispatch(togglePrettyPrint(source));
         // }
-
-        return {
-          generatedSourceText,
-          originalSourceTexts
-        };
       })()
     });
   };
@@ -287,17 +256,20 @@ const FETCH_SOURCE_RESPONSE_DELAY = 200;
 /**
  * Starts fetching all the sources, silently.
  *
- * @param array aUrls
+ * @memberof actions/sources
+ * @static
+ * @param array actors
  *        The urls for the sources to fetch. If fetching a source's text
  *        takes too long, it will be discarded.
- * @return object
+ * @returns {Promise}
  *         A promise that is resolved after source texts have been fetched.
  */
-function getTextForSources(actors) {
-  return ({ dispatch, getState }) => {
+function getTextForSources(actors: any[]) {
+  return ({ dispatch, getState }: ThunkArgs) => {
     let deferred = defer();
     let pending = new Set(actors);
-    let fetched = [];
+    type FetchedSourceType = [any, string, string];
+    let fetched: FetchedSourceType[] = [];
 
     // Can't use promise.all, because if one fetch operation is rejected, then
     // everything is considered rejected, thus no other subsequent source will
@@ -323,7 +295,7 @@ function getTextForSources(actors) {
     }
 
     /* Called if fetching a source finishes successfully. */
-    function onFetch([aSource, aText, aContentType]) {
+    function onFetch([aSource, aText, aContentType]: FetchedSourceType) {
       // If fetching the source has previously timed out, discard it this time.
       if (!pending.has(aSource.actor)) {
         return;
@@ -339,14 +311,17 @@ function getTextForSources(actors) {
       maybeFinish();
     }
 
-    /** Called every time something interesting
+    /* Called every time something interesting
      *  happens while fetching sources.
      */
     function maybeFinish() {
       if (pending.size == 0) {
         // Sort the fetched sources alphabetically by their url.
-        deferred.resolve(
-          fetched.sort(([aFirst], [aSecond]) => aFirst > aSecond));
+        if (deferred) {
+          deferred.resolve(
+            fetched.sort(([aFirst], [aSecond]) => aFirst > aSecond ? -1 : 1)
+          );
+        }
       }
     }
 
@@ -356,10 +331,10 @@ function getTextForSources(actors) {
 
 module.exports = {
   newSource,
+  newSources,
   selectSource,
   selectSourceURL,
   closeTab,
-  blackbox,
   togglePrettyPrint,
   loadSourceText,
   getTextForSources

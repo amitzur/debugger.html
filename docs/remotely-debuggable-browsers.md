@@ -1,5 +1,27 @@
 ## Remotely debuggable browsers
 
+#### Table Of Contents
+
+[Firefox](#firefox)
+  * [MacOS](#macos)
+    * [Firefox](#firefox-release)
+    * [Firefox Nightly](#firefox-nightly)
+  * [Windows](#windows)
+    * [Firefox (all versions)](#firefox-all-versions)
+    * [Firefox (64 bit)](#firefox-64-bit)
+  * [Android](#android)
+
+[Chrome](#chrome)
+  * [MacOS](#macos-1)
+    * [Chrome (release)](#chrome-release)
+    * [Chrome Canary](#chrome-canary)
+  * [Windows](#windows-1)
+    * [Chrome (all versions)](#chrome-all-versions)
+    * [Chrome (64 bit)](#chrome-64-bit)
+
+[Safari](#safari)
+  * [iOS Simulator](#ios-simulator-mac-only)
+
 Here are quick instructions for getting the Firefox and Chrome web browsers running in a remotely debuggable state.
 
 On the Mac all instructions assume you've opened a window in the Terminal application.  On Windows all instructions assume you've opened the `cmd` application.
@@ -29,6 +51,7 @@ These are the flags necessary to start the remote debug server and use an altern
 * debug server `--start-debugger-server 6080`
 * separate profile `-P development` (not required)
  * **Note**: if you are prompted with the profile manager you will need to create a profile named `development`
+ * **Note**: in windows replace `--start-debugger-server 6080` with `-start-debugger-server 6080`
 
 ##### Firefox (release)
 
@@ -36,17 +59,9 @@ These are the flags necessary to start the remote debug server and use an altern
 $ /Applications/Firefox.app/Contents/MacOS/firefox-bin --start-debugger-server 6080 -P development
 ```
 
-##### Firefox Beta
-
-```
-$ /Applications/FirefoxBeta.app/Contents/MacOS/firefox-bin --start-debugger-server 6080 -P development
-```
-
-##### Firefox Developer Edition (Aurora)
-
-```
-$ /Applications/FirefoxDeveloperEdition.app/Contents/MacOS/firefox-bin --start-debugger-server 6080 -P development
-```
+> For Firefox Beta or Developer Edition (Aurora) replace the `Firefox.app` from the command above with the following app names
+> * FirefoxBeta.app
+> * FirefoxDeveloperEdition.app
 
 ##### Firefox Nightly
 
@@ -108,7 +123,7 @@ Here are the instructions for starting a new temporary profile of Chrome on MacO
 ##### Chrome Canary
 
 ```
-/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --no-first-run --user-data-dir=/tmp/chrome-dev-profile
+/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary --remote-debugging-port=9222 --no-first-run --user-data-dir=/tmp/chrome-dev-profile
 ```
 
 #### Windows
@@ -130,3 +145,35 @@ $ "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-por
 ```
 $ "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --no-first-run --user-data-dir=%TEMP%\chrome-dev-profile
 ```
+
+### Safari
+
+These are the instructions for getting the debugger.html project to connect to and debug Safari on various platforms. Please file issues or make pull requests for any errors you encounter.
+
+#### iOS Simulator (Mac only)
+
+**Requirements**
+
+* Xcode
+  * Download and install [Xcode](https://developer.apple.com/xcode/) from Apple
+* [ios-webkit-debug-proxy](https://github.com/google/ios-webkit-debug-proxy)
+  * `brew install ios-webkit-debug-proxy`
+
+##### Safari
+
+* Start the iOS Simulator
+  * Launch Xcode and then launch the simulator using the following instructions
+
+![xcode-start-simulator](https://cloud.githubusercontent.com/assets/2134/18512759/debce848-7a8a-11e6-981f-1a0017eb098e.png)
+
+
+* Run the proxy in a terminal
+
+```shell
+ios_webkit_debug_proxy
+```
+
+* Run the [debugger.html](https://github.com/devtools-html/debugger.html)
+  * `npm start`
+* Connect using the following URL  
+  * [http://localhost:8000/?ws=localhost:9222/devtools/page/1](http://localhost:8000/?ws=localhost:9222/devtools/page/1)

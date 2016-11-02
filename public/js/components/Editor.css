@@ -10,10 +10,14 @@
  */
 .editor-wrapper {
   position: absolute;
-  height: calc(100% - 30px);
+  height: calc(100% - 31px);
   width: 100%;
   top: 30px;
   left: 0px;
+}
+
+html[dir="rtl"] .editor-mount {
+  direction: ltr;
 }
 
 .editor-wrapper .breakpoints {
@@ -22,31 +26,56 @@
   left: 0;
 }
 
-.editor.breakpoint svg {
+.editor.new-breakpoint svg {
   fill: var(--theme-selection-background);
   width: 60px;
-  height: 12px;
+  height: 14px;
   position: absolute;
-  top: 0;
+  top: 0px;
   right: -4px;
 }
 
-.editor.breakpoint:hover {
-  cursor: pointer;
+.new-breakpoint.has-condition svg {
+  fill: var(--theme-graphs-yellow);
+}
+
+.editor.new-breakpoint.breakpoint-disabled svg {
+  opacity: 0.3;
 }
 
 .CodeMirror {
-  font-family: Menlo, monospace !important;
+  width: 100%;
+  height: 100%;
+}
+
+.editor-wrapper .editor-mount {
+  width: 100%;
+  height: calc(100% - 32px);
+  background-color: var(--theme-body-background);
+}
+
+.search-bar ~ .editor-mount {
+  height: calc(100% - 72px);
+}
+
+.CodeMirror-linenumber {
+  font-size: 11px;
+  line-height: 14px;
 }
 
 /* set the linenumber white when there is a breakpoint */
-.breakpoint .CodeMirror-linenumber {
+.new-breakpoint .CodeMirror-gutter-wrapper .CodeMirror-linenumber {
   color: white;
 }
 
 /* move the breakpoint below the linenumber */
-.breakpoint .CodeMirror-gutter-elt:last-child {
+.new-breakpoint .CodeMirror-gutter-elt:last-child {
   z-index: 0;
+}
+
+.editor-wrapper .CodeMirror-line {
+  font-size: 11px;
+  line-height: 14px;
 }
 
 .debug-line .CodeMirror-line {
@@ -57,4 +86,55 @@
    is already highlighted */
 .debug-line .CodeMirror-activeline-background {
   display: none;
+}
+
+.highlight-line .CodeMirror-line {
+  animation: fade-highlight-out 1.5s normal forwards;
+}
+
+@keyframes fade-highlight-out {
+  0% { background-color: var(--theme-highlight-gray); }
+  100% { background-color: transparent; }
+}
+
+.welcomebox {
+  width: calc(100% - 1px);
+
+  /* Offsetting it by 30px for the sources-header area */
+  height: calc(100% - 30px);
+  position: absolute;
+  top: 30px;
+  left: 0;
+  padding: 50px 0;
+  text-align: center;
+  font-size: 1.25em;
+  color: var(--theme-comment-alt);
+  background-color: var(--theme-tab-toolbar-background);
+  font-weight: lighter;
+  z-index: 100;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.conditional-breakpoint-panel {
+  cursor: initial;
+  margin: 1em 0;
+  position: relative;
+  background: var(--theme-toolbar-background);
+  border-top: 1px solid var(--theme-splitter-color);
+  border-bottom: 1px solid var(--theme-splitter-color);
+}
+
+.conditional-breakpoint-panel input {
+  margin: 5px 10px;
+  width: calc(100% - 2em);
+  border: none;
+  background: var(--theme-toolbar-background);
+  font-size: 14px;
+  color: var(--theme-comment);
+  line-height: 30px;
+}
+
+.conditional-breakpoint-panel input:focus {
+  outline-width: 0;
 }

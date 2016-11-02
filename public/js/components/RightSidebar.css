@@ -1,23 +1,59 @@
 .right-sidebar {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   white-space: nowrap;
 }
 
+.right-siderbar * {
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.right-sidebar .accordion {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.right-sidebar .command-bar {
+  border-bottom: 1px solid var(--theme-splitter-color);
+}
+
 .command-bar {
-  border-bottom: 1px solid #cccccc;
   height: 30px;
-  padding: 8px 5px 10px 10px;
-  overflow: hidden;
+}
+
+html:not([dir="rtl"]) .command-bar {
+  padding: 8px 5px 10px 1px;
+}
+
+html[dir="rtl"] .command-bar {
+  padding: 8px 1px 10px 5px;
 }
 
 .command-bar > span {
   cursor: pointer;
-  margin-right: 0.7em;
-  width: 1em;
-  height: 1.1em;
+  width: 16px;
+  height: 17px;
   display: inline-block;
   text-align: center;
-  transition: opacity 200ms;
+  transition: all 0.25s ease;
+}
+
+:root.theme-dark .command-bar > span {
+  fill: var(--theme-body-color);
+}
+
+:root.theme-dark .command-bar > span:hover {
+  fill: var(--theme-selection-color);
+}
+
+html:not([dir="rtl"]) .command-bar > span {
+  margin-right: 0.7em;
+}
+
+html[dir="rtl"] .command-bar > span {
+  margin-left: 0.7em;
 }
 
 .command-bar > span.disabled {
@@ -25,8 +61,12 @@
   cursor: default;
 }
 
-.command-bar .stepOut {
+html:not([dir="rtl"]) .command-bar .stepOut {
   margin-right: 2em;
+}
+
+html[dir="rtl"] .command-bar .stepOut {
+  margin-left: 2em;
 }
 
 .command-bar .subSettings {
@@ -34,7 +74,6 @@
 }
 
 .pane {
-  font-size: 0.75em;
   color: var(--theme-body-color);
 }
 
@@ -42,4 +81,16 @@
   font-style: italic;
   text-align: center;
   padding: 0.5em;
+}
+
+.toggleBreakpoints.breakpoints-disabled path {
+  stroke: var(--theme-highlight-blue);
+}
+
+span.pause-exceptions.uncaught {
+  stroke: var(--theme-highlight-purple);
+}
+
+span.pause-exceptions.all {
+  stroke: var(--theme-highlight-blue);
 }

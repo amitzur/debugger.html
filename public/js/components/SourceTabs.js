@@ -3,32 +3,21 @@ const { DOM: dom, PropTypes } = React;
 const ImPropTypes = require("react-immutable-proptypes");
 const { connect } = require("react-redux");
 const { bindActionCreators } = require("redux");
-const Svg = require("./utils/Svg");
-const { getSelectedSource, getSourceTabs } = require("../selectors");
-const { endTruncateStr } = require("../utils/utils");
+const {
+  getSelectedSource,
+  getSourceTabs,
+  getFileSearchState
+} = require("../selectors");
+const { getFilename } = require("../utils/source");
 const classnames = require("classnames");
 const actions = require("../actions");
-const { isEnabled } = require("../feature");
+const { isEnabled } = require("devtools-config");
+const CloseButton = require("./CloseButton");
+const Svg = require("./utils/Svg");
+const Dropdown = React.createFactory(require("./Dropdown"));
 
 require("./SourceTabs.css");
 require("./Dropdown.css");
-
-/**
- * TODO: this is a placeholder function
- */
-function getFilename(url) {
-  if (!url) {
-    return "";
-  }
-
-  let name = url;
-  const m = url.toString().match(/.*\/(.+?\..*$)/);
-  if (m && m.length > 1) {
-    name = m[1];
-  }
-
-  return endTruncateStr(name, 50);
-}
 
 /*
  * Finds the hidden tabs by comparing the tabs' top offset.
@@ -52,23 +41,13 @@ function getHiddenTabs(sourceTabs, sourceTabEls) {
   });
 }
 
-/*
- * Get the last visible tab index so that we can replace the last
- * tab with the newly selected source.
- */
-function getLastVisibleTabIndex(sourceTabs, sourceTabEls) {
-  const hiddenTabs = getHiddenTabs(sourceTabs, sourceTabEls);
-  const firstHiddenTab = hiddenTabs.first();
-  const firstHiddenTabIndex = sourceTabs.indexOf(firstHiddenTab);
-  return firstHiddenTabIndex - 1;
-}
-
 const SourceTabs = React.createClass({
   propTypes: {
     sourceTabs: ImPropTypes.list,
     selectedSource: ImPropTypes.map,
     selectSource: PropTypes.func.isRequired,
-    closeTab: PropTypes.func.isRequired
+    closeTab: PropTypes.func.isRequired,
+    toggleFileSearch: PropTypes.func.isRequired
   },
 
   displayName: "SourceTabs",
@@ -107,37 +86,21 @@ const SourceTabs = React.createClass({
     });
   },
 
-  renderSourcesDropdown() {
-    if (!this.state.hiddenSourceTabs) {
-      return dom.div({});
-    }
-
-    return dom.div({
-      className: "sources-dropdown dropdown",
-      ref: "sourcesDropdown",
-      style: { display: (this.state.dropdownShown ? "block" : "none") }
-    },
-      dom.ul({}, this.state.hiddenSourceTabs.map(this.renderDropdownSource))
-    );
-  },
-
   renderDropdownSource(source) {
-    const { selectSource, sourceTabs } = this.props;
-    const url = source && source.get("url");
-    const filename = getFilename(url);
-    const sourceTabEls = this.refs.sourceTabs.children;
+    const { selectSource } = this.props;
+    const filename = getFilename(source.toJS());
 
     return dom.li({
       key: source.get("id"),
       onClick: () => {
-        const tabIndex = getLastVisibleTabIndex(sourceTabs, sourceTabEls);
-        selectSource(source.get("id"), { position: tabIndex });
-        this.toggleSourcesDropdown();
+        // const tabIndex = getLastVisibleTabIndex(sourceTabs, sourceTabEls);
+        const tabIndex = 0;
+        selectSource(source.get("id"), { tabIndex });
       }
     }, filename);
   },
 
-  renderSourcesDropdownButon() {
+  renderSourcesDropdownButton() {
     const hiddenSourceTabs = this.state.hiddenSourceTabs;
     if (!hiddenSourceTabs || hiddenSourceTabs.size == 0) {
       return dom.div({});
@@ -148,7 +111,7 @@ const SourceTabs = React.createClass({
         className: "subsettings",
         onClick: this.toggleSourcesDropdown
       },
-      dom.img({ src: "images/subSettings.svg" })
+      Svg("subSettings")
     );
   },
 
@@ -162,8 +125,7 @@ const SourceTabs = React.createClass({
 
   renderTab(source) {
     const { selectedSource, selectSource, closeTab } = this.props;
-    const url = source && source.get("url");
-    const filename = getFilename(url);
+    const filename = getFilename(source.toJS());
     const active = source.get("id") == selectedSource.get("id");
 
     function onClickClose(ev) {
@@ -176,28 +138,42 @@ const SourceTabs = React.createClass({
         className: classnames("source-tab", { active }),
         key: source.get("id"),
         onClick: () => selectSource(source.get("id")),
-        title: url
+        title: source.get("url")
       },
       dom.div({ className: "filename" }, filename),
-      dom.div(
-        { onClick: onClickClose },
-        dom.span(
-          { className: "close-btn" },
-          Svg("close")
-        )
+      CloseButton({ handleClick: onClickClose }));
+  },
+
+  renderNewButton() {
+    return dom.div({
+      className: "new-tab-btn",
+      onClick: () => this.props.toggleFileSearch(true)
+    }, Svg("plus"));
+  },
+
+  renderDropdown() {
+    const hiddenSourceTabs = this.state.hiddenSourceTabs;
+    if (!hiddenSourceTabs || hiddenSourceTabs.size == 0) {
+      return dom.div({});
+    }
+
+    return Dropdown({
+      panel: dom.ul(
+        {},
+        this.state.hiddenSourceTabs.map(this.renderDropdownSource)
       )
-    );
+    });
   },
 
   render() {
-    if (!isEnabled("features.tabs")) {
+    if (!isEnabled("tabs")) {
       return dom.div({ className: "source-header" });
     }
 
     return dom.div({ className: "source-header" },
-      this.renderSourcesDropdown(),
       this.renderTabs(),
-      this.renderSourcesDropdownButon()
+      this.renderNewButton(),
+      this.renderDropdown()
     );
   }
 });
@@ -205,7 +181,8 @@ const SourceTabs = React.createClass({
 module.exports = connect(
   state => ({
     selectedSource: getSelectedSource(state),
-    sourceTabs: getSourceTabs(state)
+    sourceTabs: getSourceTabs(state),
+    searchOn: getFileSearchState(state)
   }),
   dispatch => bindActionCreators(actions, dispatch)
 )(SourceTabs);

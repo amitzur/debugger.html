@@ -24,8 +24,10 @@ We respect your time and want to help you make the most of it as you learn more 
   * [Writing Documentation](#writing-documentation-book)
   * [Writing Code](#writing-code-computer)
     * [Your First Code Contribution](#your-first-code-contribution)
+    * [Coding Standards](#coding-standards)
     * [Pull Requests](#pull-requests)
     * [Hot Reloading](#hot-reloading-fire)
+    * [Logging](#logging)
   * [Tests](#tests)
     * [Unit Tests](#unit-tests)
     * [Integration Tests](#integration-tests)
@@ -33,10 +35,13 @@ We respect your time and want to help you make the most of it as you learn more 
     * [Storybook](#storybook)
   * [Configuration](#configuration)
     * [Create a local config file](#create-a-local-config-file)
+  * [Issues and Pull Request labels](#issues-and-pull-requests)
 
 ## What should I know before I get started?
 
 The developer tools in most major browsers are just web applications.  They are HTML & JS rendered by the browser and talk to the browser itself through an API that gives access to the page internals.  This project is a brand new web application interface for JavaScript debugging designed for browsers and JS environments.
+
+We strive for collaboration with [mutual respect for each other](./CODE_OF_CONDUCT.md).   Mozilla also has a set of [participation guidelines](https://www.mozilla.org/en-US/about/governance/policies/participation/) which goes into greater detail specific to Mozilla employees and contributors.
 
 ### debugger.html
 
@@ -44,7 +49,7 @@ The debugger.html project is a JavaScript debugger built from the ground up usin
 
 ### devtools.html
 
-devtools.html is the larger umbrella initiative that encompasses the debugger.html and several other devtools projects.  The devtools.html project claims its origin from a demo for a Mozilla (Dec 2016) work week in Orlando, FL USA where the team worked under a tight deadline to provide a proof of concept of the Firefox developer tools running in pure HTML; even outside of Firefox. The code for that demo can be found on Github under [@joewalker/devtools.html](https://github.com/joewalker/devtools.html).
+devtools.html is the larger umbrella initiative that encompasses the debugger.html and several other devtools projects.  The devtools.html project claims its origin from a demo for a Mozilla (Dec 2015) work week in Orlando, FL USA where the team worked under a tight deadline to provide a proof of concept of the Firefox developer tools running in pure HTML; even outside of Firefox. The code for that demo can be found on Github under [@joewalker/devtools.html](https://github.com/joewalker/devtools.html).
 
 From that original demo the devtools.html project has progressed quite a bit.  To learn more about it please read the [devtools.html proposal document](https://docs.google.com/document/d/1_5aerWTN_GVofr6YQVjmJlaGfZ4nv5YKZmdGHewfTpE/edit#heading=h.dw3amfbdp0lh) and take a look at the [devtools.html meta bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1263750) for tracking progress.
 
@@ -62,7 +67,17 @@ The debugger.html is a web application that makes a [WebSocket](https://develope
 
 First we need to get the web application running.  Within the source code directory, from the command line run these commands.
 
+### Linux or MacOs
+
 * `npm install` - Install dependencies
+* `npm start` - Start development web server
+
+### Windows
+
+It is recommended to use Git Shell which comes with [GitHub Desktop] application to emulate bash on Windows.
+
+* `npm install --ignore-scripts` - Install dependencies
+* `bash ./bin/preinstall` - Run preinstall script manually
 * `npm start` - Start development web server
 
 Then, because `npm start` will remain running, from another terminal window you can open [http://localhost:8000](http://localhost:8000) in your browser or type the following:
@@ -86,10 +101,18 @@ $ npm run firefox
 
 **Command line option**
 
-Here are the instructions for running Firefox from the command line (MacOS + Firefox shown):
+Here are the instructions for running Firefox from the command line:
+
+**MacOs**:
 
 ```
 $ /Applications/Firefox.app/Contents/MacOS/firefox-bin --start-debugger-server 6080 -P development
+```
+
+**Windows:**
+
+```
+C:\Program Files (x86)\Mozilla Firefox\firefox.exe -start-debugger-server 6080 -P development
 ```
 
 > If this command doesn't work for your OS or Firefox version see the other [Firefox commands for running in a debuggable state](./docs/remotely-debuggable-browsers.md#firefox)
@@ -109,22 +132,10 @@ Once you have Firefox running in a debuggable state go back up to instructions f
 Start by running Chrome with remote debugging turned on, this command also creates a new _temporary_ profile
 
 ```
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --no-first-run --user-data-dir=/tmp/chrome-dev-profile http://localhost:8000/todomvc/
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --no-first-run --user-data-dir=/tmp/chrome-dev-profile http://localhost:7999/todomvc/
 ```
 > If this command doesn't work for your OS or Chrome version see the other [Chrome commands for running in a debuggable state](./docs/remotely-debuggable-browsers.md#chrome)
 
-Now turn on Chrome debugging in the config by [creating a local config file](#create-a-local-config-file)
-
-* Edit the `config/local.json` you just created to change the value of `chrome.debug` to be `true`
-
-```json
-"chrome": {
-  "debug": true
-}
-```
-
-* Restart your development server by typing `ctrl+c` in the Terminal and run `npm start` again
-* Reload `localhost:8000` (you should now see a Chrome tabs section)
 
 #### Node.js
 
@@ -136,7 +147,11 @@ $ node --inspect server.js
 
 With node running in _inspect mode_ go to your browser running `localhost:8000` and click **[connect to Node](http://localhost:8000/?ws=localhost:9229/node)**
 
+**Note:** Currently Node.js debugging is limited in some ways, there isn't support for seeing variables or the console, but you can manage breakpoints and navigate code execution (pause, step-in, step-over, etc.) in the debugger across various sources.
+
 ## How Can I Contribute?
+
+Here is a great GitHub guide on [contributing to Open Source](https://guides.github.com/activities/contributing-to-open-source/) to help you get started.
 
 ### Reporting Bugs :bug:
 
@@ -144,7 +159,7 @@ If you find an issue with the code please do [file an issue](https://github.com/
 
 ### Suggesting Enhancements :new:
 
-We are actively investigating ways of support enhancement requests in the project so these instructions are subject to change.  For now please create an issue, tag it with the [enhancement](https://github.com/devtools-html/debugger.html/labels/enhancement) label and we will attempt to respond.
+We are actively investigating ways of support enhancement requests in the project so these instructions are subject to change.  For now please create an issue, tag it with the [enhancement][labels-enhancement] label and we will attempt to respond.
 
 ### Writing Documentation :book:
 
@@ -154,29 +169,63 @@ Documentation is as important as code and we need your help to maintain clear an
 
 We have a number of tools to help you with your code contributions, the following describes them all and how you can make use of them.
 
+If you've contributed to an open source project before and would like to help this one please take a look through the `up for grabs` issues:
+
+* [up for grabs][labels-up-for-grabs] - issues should have clear requirements and a difficulty level set as a label
+
+If you find an `up for grabs` issue without a difficulty level set as a label or unclear requirements please comment in the issue so we can get that fixed.
+
 #### Your First Code Contribution
 
-If this is your first time contributing any code take a look through the `first-timers-only` issues:
+If you're looking for a good issue, you can look through the `up-for-grabs` issues. These issues should be actionable and well documented.
 
-* [first-timers-only](https://github.com/devtools-html/debugger.html/labels/first-timers-only) - issues which should have clear expectations and a mentor to help you through
+There are several difficulty levels, *easy*, *medium*, *hard*. We recommend grabbing an *easy* issue, but it's up to you.
 
-If you've contributed to an open source project before, but would like to help this one please take a look through the `up for grabs` issues:
+* [up-for-grabs][labels-up-for-grabs] - issues that are not assigned to anyone and are available to be worked on.
+* [difficulty:easy][labels-difficulty-easy] - clear expectations and a mentor to help you through.
+* [difficulty:medium][labels-difficulty-medium] - more complex and may not have as clear expectations.
+* [difficulty:hard][labels-difficulty-hard] - complex and has some open technical questions.
 
-* [up for grabs](https://github.com/devtools-html/debugger.html/labels/up%20for%20grabs) - issues which should have clear requirements and a difficulty level set as a label
 
 To begin your work make sure you follow these steps:
 
 * [Fork this project](https://github.com/devtools-html/debugger.html#fork-destination-box)
 * Create a branch to start your work `git checkout -b your-feature-name`
 * Commit your work
-* Create a pull request
+* Create a [pull request](#pull-requests)
+
+#### Coding Standards
+
+> Be consistent with the rest of the code in the file
+
+Here are pointers to the DevTools general coding style and formatting guidelines.
+
+* [JS Coding Style](https://wiki.mozilla.org/DevTools/CodingStandards#Code_style)
+* [Formatting Comments](https://wiki.mozilla.org/DevTools/CodingStandards#Comments)
+
+#### Issues
+
+We use issues and milestones for planning purposes as well as tracking bugs.
+
+**Keep Issues Relevant**
+
+We try to keep the number of open issues to a minimum.  If work isn't going to be done in a timely manner we would rather close the issue than let them go stale.  Closed issues can always be reopened again when we are ready to start the work.  This process helps keep the focus of the project more understandable to others.
+
+**Intent to implement**
+
+When a person is assigned to an issue this indicates an _intent to implement_.  Please ask within the issue if you would like to work on a fix so multiple people don't create pull requests for it.
 
 #### Pull Requests
 
 * Include screenshots and animated GIFs in your pull request whenever possible.
 * List any steps necessary to trigger the feature you've created or bug you are fixing
-* Always run the [tests](#tests) locally before creating your PR
+* Always run the [unit tests](#unit-tests) locally before creating your PR
+ * The [integration tests](#integration-tests) will be run automatically by the CI or you can try running them locally as well
+* Once the tests have passed in the PR you must receive a review using the GitHub review system
+ * To learn more about GitHub reviews take a look at their [documentation](https://help.github.com/articles/reviewing-changes-in-pull-requests/) and [video tutorial](https://youtu.be/HW0RPaJqm4g)
 * Request review from @jasonLaster or @jlongster by mentioning their names in the PR
+
+> **Working on your first Pull Request?** You can learn how from this *free* series [How to Contribute to an Open Source Project on GitHub](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github)
 
 #### Hot Reloading :fire:
 
@@ -189,13 +238,38 @@ To enabled Hot Reloading:
 
 ```json
 {
-  "hotReloading": true  
+  "hotReloading": true
 }
 ```
 
 * Restart your development server by typing `ctrl+c` in the Terminal and run `npm start` again
 
 Read more about [Hot Reloading](./docs/local-development.md#hot-reloading)
+
+### Logging
+
+Logging information can be very useful when developing, and there are a few logging options available to you.
+
+To enable logging:
+
+* [Create a local config file](#create-a-local-config-file) if you don't already have one
+* Edit your local config, changing the value of the logger type you want to see to `true`
+
+```json
+  "logging": {
+    "client": false,
+    "firefoxProxy": false,
+    "actions": true
+  }
+```
+
+Let's cover the logging types.
+
+* client -  This option is currently unused.
+
+* firefoxProxy - This logger outputs a verbose output of all the Firefox protocol packets to your shell.
+
+* actions - This logger outputs the Redux actions fired to the browser console.
 
 ### Tests
 
@@ -216,11 +290,9 @@ $ npm run test-all
 
 #### Integration tests
 
-* `npm run cypress` - Run tests headlessly
-* `npm run cypress-intermittents` - Runs tests 100 times and writes the output to cypress-run.log
-* `cypress open` - Run tests in the browser
+We use [mochitests](https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Mochitest) to do integration testing.  Running these integration tests locally requires some finesse and so as a contributor we only ask that you run the unit tests.   The mochitests will be run by the automated testing which runs once you've made a pull request and the maintainers are happy to help you through any issues which arise from that.
 
-Learn more about Cypress in our [integration tests docs](./docs/integration-tests.md).
+Learn more about mochitests in our [mochitests docs](./docs/mochitests.md).
 
 #### Linting
 
@@ -255,6 +327,7 @@ $ npm run lint-js
 Storybook is our local development and testing utility that allows you to see how an individual component like the breakpoint list view or the call stack view react to any changes to style and code you've made.
 
 ```
+$ npm i -g @kadira/storybook
 $ npm run storybook
 ```
 
@@ -262,7 +335,7 @@ Read more information in [storybook docs](./docs/local-development.md#storybook)
 
 ## Configuration
 
-All default config values are in [`config/development.json`](./config/development.json), to override these values you need to [create a local config file](#create-a-local-config-file).
+All default config values are in [`packages/devtools-config/configs/development.json`](./packages/devtools-config/configs/development.json), to override these values you need to [create a local config file](#create-a-local-config-file).
 
 Here are the most common development configuration options:
 
@@ -272,8 +345,43 @@ Here are the most common development configuration options:
   * `debug` Enables listening for remotely debuggable Chrome browsers
 * `hotReloading` enables [Hot Reloading](./docs/local-development.md#hot-reloading) of CSS and React
 
-For a list of all the configuration options see the [config/README](./config/README.md)
+For a list of all the configuration options see the [packages/devtools-config/README.md](./packages/devtools-config/README.md)
 
 ### Create a local config file
 
-* Copy the [`config/development.json`](./config/development.json) to `config/local.json`
+* Copy the [`packages/devtools-config/configs/development.json`](./packages/devtools-config/configs/development.json) to `packages/devtools-config/configs/local.json`
+
+## Issues and Pull Request labels
+
+These are the [labels](https://github.com/devtools-html/debugger.html/labels) we use to help organize and communicate the state of issues and pull requests in the project.  If you find a label being used that isn't described here please file an issue to get it listed.
+
+| Label name | query:mag_right: | Description |
+| --- | --- | --- |
+| `up-for-grabs` | [search][labels-up-for-grabs] | Good for contributors to work on |
+| `difficulty:easy` | [search][labels-difficulty-easy] | Work that is small changes, updating tests, updating docs, expect very little review |
+| `difficulty:medium` | [search][labels-difficulty-medium] | Work that adapts existing code, adapts existing tests, expect quick review |
+| `difficulty:hard` | [search][labels-difficulty-hard] | Work that requires new tests, new code, and a good understanding of project; expect lots of review |
+| `docs` | [search][labels-docs] | Issues with our documentation |
+| `design` | [search][labels-design] | Issues that require design work |
+| `enhancement` | [search][labels-enhancement] | [Requests](#suggesting-enhancements-new) for features |
+| `bug` | [search][labels-bug] | [Reported Bugs](#reporting-bugs-bug) with the current code |
+| `chrome` | [search][labels-chrome] | Chrome only issues |
+| `firefox` | [search][labels-firefox] | Firefox only issues |
+| `infrastructure` | [search][labels-infrastructure] | Issues with testing / build infrastructure |
+| `not actionable` | [search][labels-not-actionable] | Issues need clearer requirements before work can be started |
+
+[labels-up-for-grabs]:https://github.com/devtools-html/debugger.html/labels/up%20for%20grabs
+[labels-first-timers-only]:https://github.com/devtools-html/debugger.html/labels/first-timers-only
+[labels-difficulty-easy]:https://github.com/devtools-html/debugger.html/labels/difficulty%3A%20easy
+[labels-difficulty-medium]:https://github.com/devtools-html/debugger.html/labels/difficulty%3A%medium
+[labels-difficulty-hard]:https://github.com/devtools-html/debugger.html/labels/difficulty%3A%hard
+[labels-docs]:https://github.com/devtools-html/debugger.html/labels/docs
+[labels-design]:https://github.com/devtools-html/debugger.html/labels/design
+[labels-enhancement]:https://github.com/devtools-html/debugger.html/labels/enhancement
+[labels-bug]:https://github.com/devtools-html/debugger.html/labels/bug
+[labels-chrome]:https://github.com/devtools-html/debugger.html/labels/chrome
+[labels-firefox]:https://github.com/devtools-html/debugger.html/labels/firefox
+[labels-infrastructure]:https://github.com/devtools-html/debugger.html/labels/infrastructure
+[labels-not-actionable]:https://github.com/devtools-html/debugger.html/labels/not%20actionable
+
+[GitHub Desktop]:https://desktop.github.com/

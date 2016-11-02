@@ -1,33 +1,42 @@
 // @flow
 
+import type { Source, Breakpoint, Location, SourceText } from "../types";
+
+/**
+ * Flow types
+ * @module actions/types
+ */
+
+/**
+  * Argument parameters via Thunk middleware for {@link https://github.com/gaearon/redux-thunk|Redux Thunk}
+  *
+  * @memberof actions/breakpoints
+  * @static
+  * @typedef {Object} ThunkArgs
+  */
+export type ThunkArgs = {
+  dispatch: () => Promise<any>,
+  getState: () => any,
+  client: any
+};
+
+/**
+ * Tri-state status for async operations
+ *
+ * Available options are:
+ * `"start"` or `"done"` or `"error"`
+ *
+ * @memberof actions/types
+ * @static
+ * @enum
+ */
 export type AsyncStatus = "start" | "done" | "error";
 
-export type Location = {
-  sourceId: string,
-  line: number,
-  column?: number
-};
-
-export type Breakpoint = {
+type BreakpointResult = {
+  actualLocation: Location,
   id: string,
-  location: Location,
-  loading: boolean,
-  disabled: boolean,
-  text: string,
-  condition: ?string
-};
-
-export type SourceText = {
-  id: string,
-  text: string,
-  contentType: string
-};
-
-export type Source = {
-  id: string,
-  url?: string,
-  sourceMapURL?: string
-};
+  text: string
+}
 
 type BreakpointAction =
   { type: "ADD_BREAKPOINT",
@@ -35,7 +44,7 @@ type BreakpointAction =
     condition: string,
     status: AsyncStatus,
     error: string,
-    value: { actualLocation: Location, id: string, text: string } }
+    value: BreakpointResult}
   | { type: "REMOVE_BREAKPOINT",
       breakpoint: Breakpoint,
       status: AsyncStatus,
@@ -45,21 +54,25 @@ type BreakpointAction =
       breakpoint: Breakpoint,
       condition: string,
       status: AsyncStatus,
-      error: string };
+      value: BreakpointResult,
+      error: string }
+  | { type: "TOGGLE_BREAKPOINTS",
+      shouldDisableBreakpoints: boolean,
+      status: AsyncStatus,
+      error: string,
+      value: any };
 
 type SourceAction =
   { type: "ADD_SOURCE", source: Source }
-  | { type: "ADD_SOURCES", sources: Array<Source> }
-  | { type: "SELECT_SOURCE", source: Source, options: { position?: number } }
-  | { type: "SELECT_SOURCE_URL", url: string }
+  | { type: "SELECT_SOURCE", source: Source,
+      line?: number,
+      tabIndex?: number }
+  | { type: "SELECT_SOURCE_URL", url: string, line?: number }
   | { type: "LOAD_SOURCE_TEXT",
       source: Source,
       status: AsyncStatus,
       error: string,
-      value: {
-        generatedSourceText: SourceText,
-        originalSourceTexts: Array<SourceText>
-      }}
+      value: SourceText }
   | { type: "BLACKBOX",
       source: Source,
       status: AsyncStatus,
@@ -74,7 +87,16 @@ type SourceAction =
                sourceText: SourceText }}
   | { type: "CLOSE_TAB", id: string };
 
+type UIAction = { type: "TOGGLE_FILE_SEARCH", searchOn: boolean };
+
+/**
+ * Actions: Source, Breakpoint, and Navigation
+ *
+ * @memberof actions/types
+ * @static
+ */
 export type Action =
   SourceAction
   | BreakpointAction
-  | { type: "NAVIGATE" };
+  | { type: "NAVIGATE" }
+  | UIAction;
