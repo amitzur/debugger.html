@@ -12,20 +12,23 @@ const Autocomplete = React.createClass({
   propTypes: {
     selectItem: PropTypes.func,
     items: PropTypes.array,
-    handleClose: PropTypes.func
+    handleClose: PropTypes.func,
+    inputValue: PropTypes.string
   },
 
   displayName: "Autocomplete",
 
   getInitialState() {
     return {
-      inputValue: "",
+      inputValue: this.props.inputValue,
       selectedIndex: INITIAL_SELECTED_INDEX
     };
   },
 
   componentDidMount() {
+    const endOfInput = this.state.inputValue.length;
     this.refs.searchInput.focus();
+    this.refs.searchInput.setSelectionRange(endOfInput, endOfInput);
   },
 
   componentDidUpdate() {
@@ -74,7 +77,14 @@ const Autocomplete = React.createClass({
       });
       e.preventDefault();
     } else if (e.key === "Enter") {
-      this.props.selectItem(searchResults[this.state.selectedIndex]);
+      if (searchResults.length) {
+        this.props.selectItem(searchResults[this.state.selectedIndex]);
+      } else {
+        this.props.handleClose(this.state.inputValue);
+      }
+      e.preventDefault();
+    } else if (e.key === "Tab") {
+      this.props.handleClose(this.state.inputValue);
       e.preventDefault();
     }
   },
@@ -97,6 +107,7 @@ const Autocomplete = React.createClass({
     return dom.input(
       {
         ref: "searchInput",
+        value: this.state.inputValue,
         onChange: (e) => this.setState({
           inputValue: e.target.value,
           selectedIndex: INITIAL_SELECTED_INDEX
@@ -121,6 +132,21 @@ const Autocomplete = React.createClass({
     }
   },
 
+  renderSummary(searchResults) {
+    if (searchResults && searchResults.length === 0) {
+      return;
+    }
+
+    let resultCountSummary = "";
+    if (this.state.inputValue) {
+      resultCountSummary = L10N.getFormatStr(
+        "sourceSearch.resultsSummary",
+        searchResults.length,
+        this.state.inputValue);
+    }
+    return dom.div({ className: "results-summary" }, resultCountSummary);
+  },
+
   render() {
     const searchResults = this.getSearchResults();
     return dom.div(
@@ -134,8 +160,10 @@ const Autocomplete = React.createClass({
       Svg("magnifying-glass"),
       this.renderInput(),
       CloseButton({
+        buttonClass: "big",
         handleClick: this.props.handleClose
       })),
+      this.renderSummary(searchResults),
       this.renderResults(searchResults));
   }
 });

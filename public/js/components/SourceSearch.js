@@ -18,8 +18,9 @@ const Autocomplete = createFactory(require("./Autocomplete"));
 
 function searchResults(sources) {
   function getSourcePath(source) {
-    const { path } = parseURL(source.get("url"));
-    return endTruncateStr(path, 50);
+    const { path, href } = parseURL(source.get("url"));
+    // for URLs like "about:home" the path is null so we pass the full href
+    return endTruncateStr((path || href), 50);
   }
 
   return sources.valueSeq()
@@ -48,6 +49,12 @@ const Search = React.createClass({
 
   displayName: "Search",
 
+  getInitialState() {
+    return {
+      inputValue: ""
+    };
+  },
+
   componentWillUnmount() {
     const shortcuts = this.context.shortcuts;
     shortcuts.off("CmdOrCtrl+P", this.toggle);
@@ -68,11 +75,13 @@ const Search = React.createClass({
   onEscape(shortcut, e) {
     if (this.props.searchOn) {
       e.preventDefault();
+      this.setState({ inputValue: "" });
       this.props.toggleFileSearch(false);
     }
   },
 
-  close() {
+  close(inputValue = "") {
+    this.setState({ inputValue });
     this.props.toggleFileSearch(false);
   },
 
@@ -82,19 +91,22 @@ const Search = React.createClass({
       Autocomplete({
         selectItem: result => {
           this.props.selectSource(result.id);
+          this.setState({ inputValue: "" });
           this.props.toggleFileSearch(false);
         },
         handleClose: this.close,
-        items: searchResults(this.props.sources)
+        items: searchResults(this.props.sources),
+        inputValue: this.state.inputValue
       })) : null;
   }
 
 });
 
 module.exports = connect(
-  state => ({ sources: getSources(state),
-              selectedSource: getSelectedSource(state),
-              searchOn: getFileSearchState(state)
-            }),
+  state => ({
+    sources: getSources(state),
+    selectedSource: getSelectedSource(state),
+    searchOn: getFileSearchState(state)
+  }),
   dispatch => bindActionCreators(actions, dispatch)
 )(Search);

@@ -21,7 +21,7 @@ const Breakpoint = React.createFactory(require("./EditorBreakpoint"));
 
 const { getDocument, setDocument } = require("../utils/source-documents");
 const { shouldShowFooter } = require("../utils/editor");
-const { isEnabled, isFirefox } = require("devtools-config");
+const { isFirefox } = require("devtools-config");
 const { showMenu } = require("../utils/menu");
 
 require("./Editor.css");
@@ -73,6 +73,10 @@ const Editor = React.createClass({
       return;
     }
 
+    if (this.isCbPanelOpen()) {
+      return this.closeConditionalPanel(line);
+    }
+
     this.toggleBreakpoint(line);
   },
 
@@ -89,37 +93,36 @@ const Editor = React.createClass({
     }
 
     const { selectedLocation: { sourceId },
-            setBreakpointCondition, addBreakpoint, breakpoints } = this.props;
+            setBreakpointCondition, breakpoints } = this.props;
 
     const bp = breakpointAtLine(breakpoints, line);
     const location = { sourceId, line: line + 1 };
     const condition = bp ? bp.condition : "";
 
-    const closePanel = () => {
-      this.cbPanels[line].clear();
-      delete this.cbPanels[line];
-    };
-
     const setBreakpoint = value => {
-      if (bp) {
-        setBreakpointCondition(location, value);
-      } else {
-        addBreakpoint(location, {
-          condition: value,
-          getTextForLine: l => getTextForLine(this.editor.codeMirror, l)
-        });
-      }
+      setBreakpointCondition(location, {
+        condition: value,
+        getTextForLine: l => getTextForLine(this.editor.codeMirror, l)
+      });
     };
 
     const panel = renderConditionalPanel({
-      condition, closePanel, setBreakpoint
+      condition,
+      setBreakpoint,
+      closePanel: this.closeConditionalPanel
     });
 
-    this.cbPanels[line] = this.editor.codeMirror.addLineWidget(line, panel);
+    this.cbPanel = this.editor.codeMirror.addLineWidget(line, panel);
+    this.cbPanel.node.querySelector("input").focus();
+  },
+
+  closeConditionalPanel() {
+    this.cbPanel.clear();
+    this.cbPanel = null;
   },
 
   isCbPanelOpen() {
-    return Object.keys(this.cbPanels).length == 1;
+    return !!this.cbPanel;
   },
 
   toggleBreakpoint(line) {
@@ -230,17 +233,22 @@ const Editor = React.createClass({
     }
 
     const toggleBreakpoint = {
-      id: "node-menu-reakpoint",
+      id: "node-menu-breakpoint",
       label: bpLabel,
-      accesskey: "E",
+      accesskey: "B",
       disabled: false,
-      click: () => this.toggleBreakpoint(line)
+      click: () => {
+        this.toggleBreakpoint(line);
+        if (this.isCbPanelOpen()) {
+          this.closeConditionalPanel();
+        }
+      }
     };
 
     const conditionalBreakpoint = {
       id: "node-menu-conditional-breakpoint",
       label: cbLabel,
-      accesskey: "A",
+      accesskey: "C",
       disabled: false,
       click: () => this.showConditionalPanel(line)
     };
@@ -252,8 +260,7 @@ const Editor = React.createClass({
   },
 
   componentDidMount() {
-    const extraKeys = isEnabled("search") ? { "Cmd-F": () => {} } : {};
-    this.cbPanels = {};
+    this.cbPanel = null;
 
     this.editor = new SourceEditor({
       mode: "javascript",
@@ -266,8 +273,11 @@ const Editor = React.createClass({
       enableCodeFolding: false,
       gutters: ["breakpoints"],
       value: " ",
-      extraKeys
+      extraKeys: {}
     });
+
+    // disables the default search shortcuts
+    this.editor._initShortcuts = () => {};
 
     this.editor.appendToLocalElement(
       ReactDOM.findDOMNode(this).querySelector(".editor-mount")

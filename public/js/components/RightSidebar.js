@@ -48,6 +48,7 @@ const RightSidebar = React.createClass({
     isWaitingOnBreak: PropTypes.bool,
     breakpointsDisabled: PropTypes.bool,
     breakpointsLoading: PropTypes.bool,
+    evaluateExpressions: PropTypes.func,
   },
 
   contextTypes: {
@@ -55,6 +56,12 @@ const RightSidebar = React.createClass({
   },
 
   displayName: "RightSidebar",
+
+  getInitialState() {
+    return {
+      expressionInputVisibility: true
+    };
+  },
 
   resume() {
     if (this.props.pause) {
@@ -191,19 +198,38 @@ const RightSidebar = React.createClass({
   },
 
   getItems() {
+    const { expressionInputVisibility } = this.state;
     const items = [
-    { header: L10N.getStr("breakpoints.header"),
-      component: Breakpoints,
-      opened: true },
-    { header: L10N.getStr("callStack.header"),
-      component: Frames },
-    { header: L10N.getStr("scopes.header"),
-      component: Scopes }
+      { header: L10N.getStr("breakpoints.header"),
+        component: Breakpoints,
+        opened: true },
+      { header: L10N.getStr("callStack.header"),
+        component: Frames },
+      { header: L10N.getStr("scopes.header"),
+        component: Scopes }
     ];
     if (isEnabled("watchExpressions")) {
       items.unshift({ header: L10N.getStr("watchExpressions.header"),
+        buttons: [
+          debugBtn(
+            evt => {
+              evt.stopPropagation();
+              this.props.evaluateExpressions();
+            }, "domain",
+            "accordion-button", "Refresh"),
+          debugBtn(
+            evt => {
+              evt.stopPropagation();
+              this.setState({
+                expressionInputVisibility: !expressionInputVisibility
+              });
+            }, "file",
+            "accordion-button", "Add Watch Expression")
+        ],
         component: Expressions,
-        opened: true });
+        componentProps: { expressionInputVisibility },
+        opened: true
+      });
     }
     return items;
   },
