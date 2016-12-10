@@ -1,0 +1,106 @@
+
+.autocomplete {
+  width: 100%;
+}
+
+.autocomplete .results * {
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.autocomplete .results-summary {
+  margin: 10px;
+}
+
+.autocomplete ul {
+  list-style: none;
+  width: 100%;
+  max-height: calc(100% - 32px);
+  margin: 0px;
+  padding: 0px;
+  overflow: auto;
+}
+
+.autocomplete li {
+  border: 2px solid var(--theme-splitter-color);
+  background-color: var(--theme-tab-toolbar-background);
+  padding: 10px;
+  margin: 10px;
+}
+
+.autocomplete li:hover {
+  background: var(--theme-tab-toolbar-background);
+  cursor: pointer;
+}
+
+.autocomplete li.selected {
+  border: 2px solid var(--theme-selection-background);
+}
+
+.autocomplete li .title {
+  line-height: 1.5em;
+  word-break: break-all;
+}
+
+.autocomplete li .subtitle {
+  line-height: 1.5em;
+  color: grey;
+  word-break: break-all;
+}
+
+.autocomplete input {
+  width: 100%;
+  border: none;
+  background-color: var(--theme-body-background);
+  color: var(--theme-comment);
+  border-bottom: 1px solid var(--theme-splitter-color);
+  outline: none;
+  line-height: 30px;
+  font-size: 14px;
+  height: 40px;
+  padding-left: 30px;
+}
+
+.autocomplete input::placeholder {
+  color: var(--theme-body-color-inactive);
+}
+
+.autocomplete .magnifying-glass svg {
+  width: 16px;
+  position: absolute;
+  top: 12px;
+  left: 10px;
+}
+
+.autocomplete.focused .magnifying-glass path,
+.autocomplete.focused .magnifying-glass ellipse {
+  stroke: var(--theme-highlight-blue);
+}
+
+.autocomplete .magnifying-glass path,
+.autocomplete .magnifying-glass ellipse {
+  stroke: var(--theme-splitter-color);
+}
+
+.autocomplete .no-result-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--theme-graphs-full-red);
+  font-size: 24px;
+  padding: 4px;
+  word-break: break-all;
+}
+
+.autocomplete .no-result-msg .sad-face {
+  width: 24px;
+  margin-right: 4px;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.autocomplete .no-result-msg .sad-face svg {
+  fill: var(--theme-graphs-full-red);
+}

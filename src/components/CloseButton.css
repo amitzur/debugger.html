@@ -1,0 +1,62 @@
+.close-btn path {
+  fill: var(--theme-body-color);
+}
+
+.close-btn .close {
+  cursor: pointer;
+  width: 12px;
+  height: 12px;
+  padding: 2px;
+  text-align: center;
+  margin-top: 2px;
+  line-height: 5px;
+  transition: all 0.25s easeinout;
+}
+
+.close-btn .close svg {
+  width: 6px;
+}
+
+.close-btn .close:hover {
+  background: var(--theme-selection-background);
+  border-radius: 2px;
+}
+
+.close-btn .close:hover path {
+  fill: white;
+}
+
+.close-btn-big {
+  padding: 13px;
+  width: 40px;
+  height: 40px;
+}
+
+.close-btn-big path {
+  fill: var(--theme-body-color);
+}
+
+.close-btn-big .close {
+  cursor: pointer;
+  display: inline-block;
+  padding: 2px;
+  text-align: center;
+  transition: all 0.25s easeinout;
+  line-height: 100%;
+  width: 16px;
+  height: 16px;
+}
+
+.close-btn-big .close svg {
+  width: 9px;
+  height: 9px;
+}
+
+.close-btn-big .close:hover {
+  background: var(--theme-selection-background);
+  border-radius: 2px;
+}
+
+.close-btn-big .close:hover path {
+  fill: white;
+}

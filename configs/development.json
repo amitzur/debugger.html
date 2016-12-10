@@ -1,0 +1,37 @@
+{
+  "title": "Debugger",
+  "environment": "development",
+  "baseWorkerURL": "http://localhost:8000/assets/build/",
+  "theme": "light",
+  "logging": {
+    "client": false,
+    "firefoxProxy": false,
+    "actions": false
+  },
+  "features": {
+    "watchExpressions": false,
+    "showSource": false,
+    "editorSearch": false,
+    "whyPaused": false,
+    "verticalLayout": false
+  },
+  "chrome": {
+    "debug": true,
+    "host": "localhost",
+    "port": 9222
+  },
+  "node": {
+    "debug": true,
+    "host": "localhost",
+    "port": 9229
+  },
+  "firefox": {
+    "webSocketConnection": false,
+    "proxyHost": "localhost:9000",
+    "websocketHost": "localhost:6080"
+  },
+  "development": {
+    "serverPort": 8000,
+    "examplesPort": 7999
+  }
+}

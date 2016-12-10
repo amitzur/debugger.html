@@ -9,6 +9,9 @@ const EventEmitter = require("./shared/event-emitter");
 const WebsocketTransport = require("./shared/transport/websocket-transport");
 const Menu = require("./client/framework/menu");
 const MenuItem = require("./client/framework/menu-item");
+const Tree = require("./client/shared/components/tree");
+const sourceUtils = require("./client/shared/source-utils");
+const frame = require("./client/shared/components/frame");
 
 module.exports = {
   KeyShortcuts,
@@ -21,5 +24,8 @@ module.exports = {
   EventEmitter,
   WebsocketTransport,
   Menu,
-  MenuItem
+  MenuItem,
+  Tree,
+  sourceUtils,
+  frame
 };

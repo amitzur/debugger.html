@@ -3,57 +3,78 @@ require("babel-register");
 
 const path = require("path");
 const webpack = require("webpack");
+const SingleModuleInstancePlugin = require("single-module-instance-webpack-plugin");
 const ExtractTextPlugin = require("extract-text-webpack-plugin");
 const { isDevelopment, isFirefoxPanel, getValue } = require("devtools-config");
-const { getConfig } = require("../devtools-config/registerConfig");
-
 const NODE_ENV = process.env.NODE_ENV || "development";
+const TARGET = process.env.TARGET || "local";
 
 const defaultBabelPlugins = [
   "transform-flow-strip-types",
   "transform-async-to-generator"
 ];
 
-module.exports = webpackConfig => {
-  webpackConfig.context = path.resolve(__dirname, "public/js");
-
+module.exports = (webpackConfig, envConfig) => {
+  webpackConfig.context = path.resolve(__dirname, "src");
   webpackConfig.devtool = "source-map";
 
-  webpackConfig.resolve = {
-    alias: {
-      "devtools/client/shared/vendor/react": "react",
-      "devtools/client/shared/vendor/react-dom": "react-dom"
-    }
-  };
-
-  webpackConfig.module = {
-    loaders: [
-    { test: /\.json$/,
-      loader: "json" },
-    { test: /\.js$/,
-      exclude: /(node_modules|bower_components|fs)/,
-      loaders: [
-        "babel?" +
-          defaultBabelPlugins.map(p => "plugins[]=" + p) +
-          "&ignore=public/js/lib"
-      ],
-      isJavaScriptLoader: true
+  webpackConfig.module = webpackConfig.module || {};
+  webpackConfig.module.loaders = webpackConfig.module.loaders || [];
+  webpackConfig.module.loaders.push({
+    test: /\.json$/,
+    loader: "json"
+  });
+  webpackConfig.module.loaders.push({
+    test: /\.js$/,
+    exclude: request => {
+      let excluded = request.match(/(node_modules|bower_components|fs)/);
+      if (webpackConfig.babelExcludes) {
+        // If the tool defines an additional exclude regexp for Babel.
+        excluded = excluded || request.match(webpackConfig.babelExcludes);
+      }
+      return excluded && !request.match(/devtools-local-toolbox(\/|\\)src/)
+              && !request.match(/devtools-client-adapters(\/|\\)src/);
     },
-    { test: /\.svg$/,
-      exclude: /lkdjlskdjslkdjsdlk/,
-      loader: "svg-inline" }
-    ]
-  };
+    loaders: [
+      `babel?${
+        defaultBabelPlugins.map(p => `plugins[]=${ p}`)
+        }&ignore=src/lib`
+    ],
+    isJavaScriptLoader: true
+  });
+  webpackConfig.module.loaders.push({
+    test: /\.svg$/,
+    exclude: /lkdjlskdjslkdjsdlk/,
+    loader: "svg-inline"
+  });
 
-  webpackConfig.plugins = [
+  const ignoreRegexes = [/^fs$/];
+  webpackConfig.externals = webpackConfig.externals || [];
+
+  function externalsTest(context, request, callback) {
+    let mod = request;
+
+    // Any matching paths here won't be included in the bundle.
+    if (ignoreRegexes.some(r => r.test(request))) {
+      return callback(null, "var {}");
+    }
+
+    callback();
+  }
+  webpackConfig.externals.push(externalsTest);
+
+  webpackConfig.plugins = webpackConfig.plugins || [];
+  webpackConfig.plugins.push(
     new webpack.DefinePlugin({
       "process.env": {
         NODE_ENV: JSON.stringify(NODE_ENV),
-        TARGET: JSON.stringify("local")
+        TARGET: JSON.stringify(TARGET)
       },
-      "DebuggerConfig": JSON.stringify(getConfig())
+      "DebuggerConfig": JSON.stringify(envConfig)
     })
-  ];
+  );
+
+  webpackConfig.plugins.push(new SingleModuleInstancePlugin());
 
   if (isDevelopment()) {
     webpackConfig.module.loaders.push({
@@ -94,7 +115,7 @@ module.exports = webpackConfig => {
   webpackConfig.postcss = () => [require("postcss-bidirection")];
 
   if (isFirefoxPanel()) {
-    webpackConfig = require("./webpack.config.devtools")(webpackConfig);
+    webpackConfig = require("./webpack.config.devtools")(webpackConfig, envConfig);
   }
 
   // NOTE: This is only needed to fix a bug with chrome devtools' debugger and

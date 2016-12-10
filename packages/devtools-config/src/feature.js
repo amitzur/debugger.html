@@ -12,7 +12,7 @@ function getValue(key) {
 }
 
 function isEnabled(key) {
-  return config.features[key];
+  return config.features && config.features[key];
 }
 
 function isDevelopment() {
@@ -29,6 +29,10 @@ function isTesting() {
 
 function isFirefoxPanel() {
   return process.env.TARGET == "firefox-panel";
+}
+
+function isApplication() {
+  return process.env.TARGET == "application";
 }
 
 function isFirefox() {
@@ -49,6 +53,7 @@ module.exports = {
   isDevelopment,
   isTesting,
   isFirefoxPanel,
+  isApplication,
   isFirefox,
   getConfig,
   setConfig

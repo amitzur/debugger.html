@@ -1,0 +1,46 @@
+
+.source-footer {
+  background: var(--theme-body-background);
+  border-top: 1px solid var(--theme-splitter-color);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 1px;
+  opacity: 1;
+  z-index: 100;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.source-footer .commands {
+  display: flex;
+  padding: 8px 0.7em;
+}
+
+.source-footer .commands * {
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.source-footer > .commands > .action {
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 200ms;
+  border: none;
+  background: transparent;
+}
+
+:root.theme-dark .source-footer > .commands > .action {
+  fill: var(--theme-body-color);
+}
+
+:root.theme-dark .source-footer > .commands > .action:hover {
+  fill: var(--theme-selection-color);
+}
+
+.source-footer > .commands > .action svg {
+  height: 1em;
+  width: 1em;
+}
