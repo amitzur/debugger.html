@@ -32,22 +32,21 @@ class Breakpoint extends Component {
     const line = bp.location.line - 1;
 
     if (bp.location.column) {
-      this.createColumnBP();
-    }
-    {
-      this.createBP();
+      this.createColumnBP(line, bp.location.column);
+    } else {
+      this.createBP(bp, line);
     }
   }
 
-  createColumnBP() {
+  createColumnBP(line, ch) {
     const widget = document.createElement("span");
     widget.innerText = "+";
     widget.classList.add("inline-bp");
 
-    return doc.setBookmark({ line: 38, ch: 13 }, { widget });
+    return this.props.editor.setBookmark({ line, ch }, { widget });
   }
 
-  createBP() {
+  createBP(bp, line) {
     this.props.editor.setGutterMarker(
       line,
       "breakpoints",

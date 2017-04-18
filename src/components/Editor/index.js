@@ -159,6 +159,7 @@ class Editor extends Component {
     codeMirrorWrapper.tabIndex = 0;
     codeMirrorWrapper.addEventListener("keydown", e => this.onKeyDown(e));
     codeMirrorWrapper.addEventListener("mouseover", e => this.onMouseOver(e));
+    codeMirrorWrapper.addEventListener("mousedown", e => this.onMouseDown(e));
 
     if (!isFirefox()) {
       codeMirror.on("gutterContextMenu", (cm, line, eventName, event) =>
