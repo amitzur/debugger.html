@@ -68,6 +68,21 @@ html[dir="rtl"] .editor-mount {
   opacity: 0.3;
 }
 
+.editor.column-breakpoint {
+  display: inline-block;
+}
+
+.editor.column-breakpoint svg {
+  fill: var(--theme-selection-background);
+  vertical-align: middle;
+  width: 17px;
+  height: 14px;
+}
+
+.editor.column-breakpoint.breakpoint-disabled svg {
+  opacity: 0.3;
+}
+
 .CodeMirror {
   width: 100%;
   height: 100%;
