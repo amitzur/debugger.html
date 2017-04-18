@@ -1,14 +1,14 @@
 // @flow
-import {
-  DOM as dom, PropTypes, createClass, createFactory
-} from "react";
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
 import { bindActionCreators } from "redux";
 import { connect } from "react-redux";
 import ImPropTypes from "react-immutable-proptypes";
 import actions from "../../actions";
 import { getSelectedFrame, getLoadedObjects, getPause } from "../../selectors";
 import { getScopes } from "../../utils/scopes";
-const ObjectInspector = createFactory(require("../shared/ObjectInspector"));
+const ObjectInspector = createFactory(
+  require("../shared/ObjectInspector").default
+);
 import "./Scopes.css";
 
 function info(text) {
@@ -18,27 +18,29 @@ function info(text) {
 let expandedCache = new Set();
 let actorsCache = [];
 
-const Scopes = createClass({
-  propTypes: {
-    pauseInfo: ImPropTypes.map,
-    loadedObjects: ImPropTypes.map,
-    loadObjectProperties: PropTypes.func,
-    selectedFrame: PropTypes.object
-  },
+class Scopes extends Component {
+  state: {
+    scopes: any
+  };
 
-  displayName: "Scopes",
+  constructor(props, ...args) {
+    const { pauseInfo, selectedFrame } = props;
+
+    super(props, ...args);
+
+    this.state = {
+      scopes: getScopes(pauseInfo, selectedFrame)
+    };
+  }
 
   shouldComponentUpdate(nextProps, nextState) {
     const { pauseInfo, selectedFrame, loadedObjects } = this.props;
-    return pauseInfo !== nextProps.pauseInfo
-      || selectedFrame !== nextProps.selectedFrame
-      || loadedObjects !== nextProps.loadedObjects;
-  },
-
-  getInitialState() {
-    const { pauseInfo, selectedFrame } = this.props;
-    return { scopes: getScopes(pauseInfo, selectedFrame) };
-  },
+    return (
+      pauseInfo !== nextProps.pauseInfo ||
+      selectedFrame !== nextProps.selectedFrame ||
+      loadedObjects !== nextProps.loadedObjects
+    );
+  }
 
   componentWillReceiveProps(nextProps) {
     const { pauseInfo, selectedFrame } = this.props;
@@ -50,7 +52,7 @@ const Scopes = createClass({
         scopes: getScopes(nextProps.pauseInfo, nextProps.selectedFrame)
       });
     }
-  },
+  }
 
   render() {
     const { pauseInfo, loadObjectProperties, loadedObjects } = this.props;
@@ -78,12 +80,19 @@ const Scopes = createClass({
 
     return dom.div(
       { className: "pane scopes-list" },
-      pauseInfo
-        ? scopeInspector
-        : info(L10N.getStr("scopes.notPaused"))
+      pauseInfo ? scopeInspector : info(L10N.getStr("scopes.notPaused"))
     );
   }
-});
+}
+
+Scopes.propTypes = {
+  pauseInfo: ImPropTypes.map,
+  loadedObjects: ImPropTypes.map,
+  loadObjectProperties: PropTypes.func,
+  selectedFrame: PropTypes.object
+};
+
+Scopes.displayName = "Scopes";
 
 export default connect(
   state => ({

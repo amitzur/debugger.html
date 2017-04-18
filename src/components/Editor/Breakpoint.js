@@ -1,31 +1,31 @@
 // @flow
-const React = require("react");
+import { PropTypes, Component } from "react";
+import { isEnabled } from "devtools-config";
 const ReactDOM = require("react-dom");
 
-const { PropTypes } = React;
-const classnames = require("classnames");
-const Svg = require("../shared/Svg");
+import classnames from "classnames";
+import Svg from "../shared/Svg";
 
 const breakpointSvg = document.createElement("div");
 ReactDOM.render(Svg("breakpoint"), breakpointSvg);
 
 function makeMarker(isDisabled: boolean) {
   const bp = breakpointSvg.cloneNode(true);
-  bp.className = classnames(
-    "editor new-breakpoint",
-    { "breakpoint-disabled": isDisabled }
-  );
+  bp.className = classnames("editor new-breakpoint", {
+    "breakpoint-disabled": isDisabled,
+    "folding-enabled": isEnabled("codeFolding")
+  });
 
   return bp;
 }
 
-const Breakpoint = React.createClass({
-  propTypes: {
-    breakpoint: PropTypes.object.isRequired,
-    editor: PropTypes.object.isRequired
-  },
+class Breakpoint extends Component {
+  addBreakpoint: Function;
 
-  displayName: "Breakpoint",
+  constructor() {
+    super();
+    this.addBreakpoint = this.addBreakpoint.bind(this);
+  }
 
   addBreakpoint() {
     const bp = this.props.breakpoint;
@@ -42,26 +42,24 @@ const Breakpoint = React.createClass({
     } else {
       this.props.editor.removeLineClass(line, "line", "has-condition");
     }
-  },
-
+  }
   shouldComponentUpdate(nextProps: any) {
-    return this.props.editor !== nextProps.editor ||
+    return (
+      this.props.editor !== nextProps.editor ||
       this.props.breakpoint.disabled !== nextProps.breakpoint.disabled ||
-      this.props.breakpoint.condition !== nextProps.breakpoint.condition;
-  },
-
+      this.props.breakpoint.condition !== nextProps.breakpoint.condition
+    );
+  }
   componentDidMount() {
     if (!this.props.editor) {
       return;
     }
 
     this.addBreakpoint();
-  },
-
+  }
   componentDidUpdate() {
     this.addBreakpoint();
-  },
-
+  }
   componentWillUnmount() {
     if (!this.props.editor) {
       return;
@@ -73,11 +71,17 @@ const Breakpoint = React.createClass({
     this.props.editor.setGutterMarker(line, "breakpoints", null);
     this.props.editor.removeLineClass(line, "line", "new-breakpoint");
     this.props.editor.removeLineClass(line, "line", "has-condition");
-  },
-
+  }
   render() {
     return null;
   }
-});
+}
 
-module.exports = Breakpoint;
+Breakpoint.propTypes = {
+  breakpoint: PropTypes.object.isRequired,
+  editor: PropTypes.object.isRequired
+};
+
+Breakpoint.displayName = "Breakpoint";
+
+export default Breakpoint;

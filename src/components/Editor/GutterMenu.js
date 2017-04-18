@@ -1,22 +1,26 @@
-const { showMenu } = require("../shared/menu");
+import { showMenu } from "devtools-launchpad";
 
-function GutterMenu({ bp, line, event,
+export default function GutterMenu({
+  bp,
+  line,
+  event,
   toggleBreakpoint,
   showConditionalPanel,
   toggleBreakpointDisabledStatus,
   isCbPanelOpen,
   closeConditionalPanel
-  }) {
+}) {
   event.stopPropagation();
   event.preventDefault();
   let breakpoint = {
-      id: "node-menu-add-breakpoint",
-      label: L10N.getStr("editor.addBreakpoint")
-    },
+    id: "node-menu-add-breakpoint",
+    label: L10N.getStr("editor.addBreakpoint")
+  },
     conditional = {
       id: "node-menu-add-conditional-breakpoint",
       label: L10N.getStr("editor.addConditionalBreakpoint")
-    }, disabled;
+    },
+    disabled;
   if (bp) {
     breakpoint = {
       id: "node-menu-remove-breakpoint",
@@ -39,38 +43,42 @@ function GutterMenu({ bp, line, event,
     }
   }
 
-  const toggleBreakpointItem = Object.assign({
-    accesskey: "B",
-    disabled: false,
-    click: () => {
-      toggleBreakpoint(line);
-      if (isCbPanelOpen) {
-        closeConditionalPanel();
+  const toggleBreakpointItem = Object.assign(
+    {
+      accesskey: "B",
+      disabled: false,
+      click: () => {
+        toggleBreakpoint(line);
+        if (isCbPanelOpen) {
+          closeConditionalPanel();
+        }
       }
-    }
-  }, breakpoint);
+    },
+    breakpoint
+  );
 
-  const conditionalBreakpoint = Object.assign({
-    accesskey: "C",
-    disabled: false,
-    click: () => showConditionalPanel(line)
-  }, conditional);
+  const conditionalBreakpoint = Object.assign(
+    {
+      accesskey: "C",
+      disabled: false,
+      click: () => showConditionalPanel(line)
+    },
+    conditional
+  );
 
-  let items = [
-    toggleBreakpointItem,
-    conditionalBreakpoint
-  ];
+  let items = [toggleBreakpointItem, conditionalBreakpoint];
 
   if (bp) {
-    const disableBreakpoint = Object.assign({
-      accesskey: "D",
-      disabled: false,
-      click: () => toggleBreakpointDisabledStatus(line)
-    }, disabled);
+    const disableBreakpoint = Object.assign(
+      {
+        accesskey: "D",
+        disabled: false,
+        click: () => toggleBreakpointDisabledStatus(line)
+      },
+      disabled
+    );
     items.push(disableBreakpoint);
   }
 
   showMenu(event, items);
 }
-
-module.exports = GutterMenu;

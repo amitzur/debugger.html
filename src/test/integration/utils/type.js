@@ -1,7 +1,7 @@
 const specialKeysMap = {
-  "Enter": 13,
-  "Escape": 27,
-  "Tab": 9
+  Enter: 13,
+  Escape: 27,
+  Tab: 9
 };
 
 function keyEvent(eventType, key, win) {
@@ -47,8 +47,7 @@ function pressKey(dbg, key) {
 }
 
 function type(dbg, string) {
-  string.split("")
-        .forEach(char => pressKey(dbg, char));
+  string.split("").forEach(char => pressKey(dbg, char));
 }
 
 function keyInfo(key, eventType) {

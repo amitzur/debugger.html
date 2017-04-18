@@ -21,10 +21,7 @@ function assertPOEState(dbg, ctx, pause, ignore) {
   const { is } = ctx;
   const {
     getState,
-    selectors: {
-      getShouldPauseOnExceptions,
-      getShouldIgnoreCaughtExceptions
-    }
+    selectors: { getShouldPauseOnExceptions, getShouldIgnoreCaughtExceptions }
   } = dbg;
 
   is(getShouldPauseOnExceptions(getState()), pause);
@@ -39,7 +36,6 @@ function assertPOEState(dbg, ctx, pause, ignore) {
   4. skip a caught error
 */
 async function testButton(ctx) {
-
   const { ok, is, info } = ctx;
   const dbg = await initDebugger("doc-exceptions.html");
 
@@ -77,11 +73,10 @@ async function testReloading(ctx) {
 
   await togglePauseOnExceptions(dbg, true, false);
   dbg = await initDebugger("doc-exceptions.html");
-  assertPOEState(dbg, ctx, true, false)
+  assertPOEState(dbg, ctx, true, false);
 }
-
 
 module.exports = {
   testButton,
   testReloading
-}
+};

@@ -4,9 +4,17 @@ import { connect } from "react-redux";
 import { bindActionCreators } from "redux";
 import ImPropTypes from "react-immutable-proptypes";
 import actions from "../../actions";
-import { getExpressions, getLoadedObjects, getPause } from "../../selectors";
-const CloseButton = React.createFactory(require("../shared/Button/Close"));
-const ObjectInspector = React.createFactory(require("../shared/ObjectInspector"));
+import {
+  getVisibleExpressions,
+  getLoadedObjects,
+  getPause
+} from "../../selectors";
+const CloseButton = React.createFactory(
+  require("../shared/Button/Close").default
+);
+const ObjectInspector = React.createFactory(
+  require("../shared/ObjectInspector").default
+);
 const { DOM: dom, PropTypes } = React;
 
 import "./Expressions.css";
@@ -15,7 +23,7 @@ function getValue(expression) {
   if (!value) {
     return {
       path: expression.from,
-      value: "<not available>",
+      value: "<not available>"
     };
   }
 
@@ -39,33 +47,41 @@ function getValue(expression) {
   };
 }
 
-const Expressions = React.createClass({
-  propTypes: {
-    expressions: ImPropTypes.list.isRequired,
-    addExpression: PropTypes.func.isRequired,
-    updateExpression: PropTypes.func.isRequired,
-    deleteExpression: PropTypes.func.isRequired,
-    loadObjectProperties: PropTypes.func,
-    loadedObjects: ImPropTypes.map.isRequired
-  },
+class Expressions extends React.Component {
+  _input: null | any;
 
-  _input: (null: any),
+  state: {
+    editing: null | Node
+  };
 
-  displayName: "Expressions",
+  renderExpression: Function;
 
-  getInitialState() {
-    return {
+  constructor(...args) {
+    super(...args);
+
+    this.state = {
       editing: null
     };
-  },
+
+    this.renderExpression = this.renderExpression.bind(this);
+  }
+
+  componentDidMount() {
+    const { expressions, evaluateExpressions } = this.props;
+    if (expressions.size > 0) {
+      evaluateExpressions();
+    }
+  }
 
   shouldComponentUpdate(nextProps, nextState) {
     const { editing } = this.state;
     const { expressions, loadedObjects } = this.props;
-    return expressions !== nextProps.expressions
-      || loadedObjects !== nextProps.loadedObjects
-      || editing !== nextState.editing;
-  },
+    return (
+      expressions !== nextProps.expressions ||
+      loadedObjects !== nextProps.loadedObjects ||
+      editing !== nextState.editing
+    );
+  }
 
   editExpression(expression, { depth }) {
     if (depth > 0) {
@@ -73,13 +89,13 @@ const Expressions = React.createClass({
     }
 
     this.setState({ editing: expression.input });
-  },
+  }
 
   deleteExpression(e, expression) {
     e.stopPropagation();
     const { deleteExpression } = this.props;
     deleteExpression(expression);
-  },
+  }
 
   inputKeyPress(e, expression) {
     if (e.key !== "Enter") {
@@ -93,37 +109,38 @@ const Expressions = React.createClass({
 
     this.setState({ editing: null });
     e.target.value = "";
-    this.props.updateExpression(
-      value,
-      expression
-    );
-  },
+    this.props.updateExpression(value, expression);
+  }
 
   renderExpressionEditInput(expression) {
     return dom.span(
       { className: "expression-input-container" },
-      dom.input(
-        { type: "text",
-          className: "input-expression",
-          onKeyPress: e => this.inputKeyPress(e, expression),
-          onBlur: () => {
-            this.setState({ editing: null });
-          },
-          defaultValue: expression.input,
-          ref: (c) => {
-            this._input = c;
-          }
+      dom.input({
+        type: "text",
+        className: "input-expression",
+        onKeyPress: e => this.inputKeyPress(e, expression),
+        onBlur: () => {
+          this.setState({ editing: null });
+        },
+        defaultValue: expression.input,
+        ref: c => {
+          this._input = c;
         }
-      )
+      })
     );
-  },
+  }
 
   renderExpression(expression) {
     const { loadObjectProperties, loadedObjects } = this.props;
     const { editing } = this.state;
-    const { input } = expression;
+    const { input, updating } = expression;
+
     if (editing == input) {
       return this.renderExpressionEditInput(expression);
+    }
+
+    if (updating) {
+      return;
     }
 
     const { value, path } = getValue(expression);
@@ -143,21 +160,20 @@ const Expressions = React.createClass({
         roots: [root],
         getObjectProperties: id => loadedObjects.get(id),
         autoExpandDepth: 0,
-        onDoubleClick: (item, options) => this.editExpression(
-          expression, options
-        ),
+        onDoubleClick: (item, options) =>
+          this.editExpression(expression, options),
         loadObjectProperties,
         getActors: () => ({})
       }),
-      CloseButton({ handleClick: e => this.deleteExpression(e, expression) }),
+      CloseButton({ handleClick: e => this.deleteExpression(e, expression) })
     );
-  },
+  }
 
   componentDidUpdate() {
     if (this._input) {
       this._input.focus();
     }
-  },
+  }
 
   renderNewExpressionInput() {
     const onKeyPress = e => {
@@ -176,15 +192,17 @@ const Expressions = React.createClass({
     };
     return dom.span(
       { className: "expression-input-container" },
-       dom.input({
-         type: "text",
-         className: "input-expression",
-         placeholder: L10N.getStr("expressions.placeholder"),
-         onBlur: e => (e.target.value = ""),
-         onKeyPress
-       })
+      dom.input({
+        type: "text",
+        className: "input-expression",
+        placeholder: L10N.getStr("expressions.placeholder"),
+        onBlur: e => {
+          e.target.value = "";
+        },
+        onKeyPress
+      })
     );
-  },
+  }
 
   render() {
     const { expressions } = this.props;
@@ -194,12 +212,24 @@ const Expressions = React.createClass({
       this.renderNewExpressionInput()
     );
   }
-});
+}
+
+Expressions.propTypes = {
+  expressions: ImPropTypes.list.isRequired,
+  addExpression: PropTypes.func.isRequired,
+  evaluateExpressions: PropTypes.func.isRequired,
+  updateExpression: PropTypes.func.isRequired,
+  deleteExpression: PropTypes.func.isRequired,
+  loadObjectProperties: PropTypes.func,
+  loadedObjects: ImPropTypes.map.isRequired
+};
+
+Expressions.displayName = "Expressions";
 
 export default connect(
   state => ({
     pauseInfo: getPause(state),
-    expressions: getExpressions(state),
+    expressions: getVisibleExpressions(state),
     loadedObjects: getLoadedObjects(state)
   }),
   dispatch => bindActionCreators(actions, dispatch)

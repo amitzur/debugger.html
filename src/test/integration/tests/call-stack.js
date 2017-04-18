@@ -7,8 +7,10 @@ const {
   clickElement,
   findElement,
   findAllElements,
+  isPaused,
+  resume,
   reload
-} = require("../utils")
+} = require("../utils");
 
 // checks to see if the frame is selected and the title is correct
 function isFrameSelected(dbg, index, title) {
@@ -55,7 +57,12 @@ async function test1(ctx) {
 async function test2(ctx) {
   const { ok, is, info } = ctx;
 
-  const dbg = await initDebugger("doc-frames.html");
+  const dbg = await initDebugger("doc-frames.html", "frames");
+
+  // NOTE: The web test runner pauses on the inline debugger statement where the mochitest skips it.
+  if (isPaused(dbg)) {
+    await resume(dbg);
+  }
 
   toggleCallStack(dbg);
 
@@ -84,4 +91,4 @@ async function test2(ctx) {
 module.exports = {
   test1,
   test2
-}
+};

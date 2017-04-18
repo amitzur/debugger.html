@@ -13,20 +13,18 @@ debugger.html is a hackable debugger for modern times, built from the ground up 
 > Or take a look at our detailed [getting started][getting-started] instructions.
 
 ```bash
-curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 0.19.1
+curl -o- -L https://yarnpkg.com/install.sh | bash -s
 git clone git@github.com:devtools-html/debugger.html.git
 
 cd debugger.html
-yarn install
-yarn run firefox
-
-# create a new terminal tab
+yarn
 yarn start
+# Go to http://localhost:8000
 ```
 
 #### Next Steps
 
-* Claim an [up-for-grabs] issue. If you get stuck, we'd be happy to [help].
+* Claim an [available] issue. If you get stuck, we'd be happy to [help].
 * Do our getting started activity [debugging the debugger][first-activity]
 * Read the [app overview][app-overview] or [contributing][contributing] guidelines
 * Watch a [video][getting-started-screencast] on contributing to the Debugger.
@@ -45,8 +43,8 @@ We strive for collaboration with [mutual respect for each other][contributing]. 
 
 We strive to make the Debugger as development friendly as possible. If you have a question that's not answered in the guide, ask us in [slack]. We also :heart: documentation PRs!
 
-|||
-|------|-----|
+| | |
+|:----:|:---:|
 |[Themes]|theming changes for light, dark, firebug|
 |[Internationalization]|using or adding a localized string *(l10n)*|
 |[Prefs]|using or adding a preferences|
@@ -91,7 +89,7 @@ Say hello in [slack] or in the [#devtools-html][irc-devtools-html] channel on ir
 [getting-started]: ./docs/getting-setup.md
 [contributing]: ./CONTRIBUTING.md
 [getting-started-screencast]: ./docs/videos.md
-[up-for-grabs]: https://github.com/devtools-html/debugger.html/labels/up%20for%20grabs
+[available]: https://github.com/devtools-html/debugger.html/labels/available
 [app-overview]: ./docs/debugger-html-react-redux-overview.md
 [first-activity]: ./docs/debugging-the-debugger.md
 [tracking]: https://github.com/devtools-html/debugger.html/projects/10

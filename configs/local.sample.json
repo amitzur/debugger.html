@@ -21,8 +21,16 @@
       "label": "Code Coverage",
       "enabled": false
     },
+    "codeFolding": {
+      "label": "Code Folding",
+      "enabled": false
+    },
     "searchModifiers": {
       "label": "Search Modifiers",
+      "enabled": false
+    },
+    "searchNav": {
+      "label": "Search Navigation",
       "enabled": false
     },
     "symbolSearch": {

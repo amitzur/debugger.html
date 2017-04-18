@@ -14,6 +14,9 @@
   width: 100%;
   top: 30px;
   left: 0px;
+  --editor-footer-height: 27px;
+  --editor-searchbar-height: 27px;
+  --editor-second-searchbar-height: 27px;
 }
 
 html[dir="rtl"] .editor-mount {
@@ -53,6 +56,10 @@ html[dir="rtl"] .editor-mount {
   right: -4px;
 }
 
+.editor.new-breakpoint.folding-enabled svg {
+  right: -16px;
+}
+
 .new-breakpoint.has-condition svg {
   fill: var(--theme-graphs-yellow);
 }
@@ -68,12 +75,7 @@ html[dir="rtl"] .editor-mount {
 
 .editor-wrapper .editor-mount {
   width: 100%;
-  height: calc(100% - 32px);
   background-color: var(--theme-body-background);
-}
-
-.search-bar ~ .editor-mount {
-  height: calc(100% - 72px);
 }
 
 .CodeMirror-linenumber {
@@ -81,13 +83,18 @@ html[dir="rtl"] .editor-mount {
   line-height: 14px;
 }
 
+.folding-enabled .CodeMirror-linenumber {
+  text-align: left;
+  padding: 0 0 0 2px;
+}
+
 /* set the linenumber white when there is a breakpoint */
 .new-breakpoint .CodeMirror-gutter-wrapper .CodeMirror-linenumber {
   color: white;
 }
 
-/* move the breakpoint below the linenumber */
-.new-breakpoint .CodeMirror-gutter-elt:last-child {
+/* move the breakpoint below the other gutter elements */
+.new-breakpoint .CodeMirror-gutter-elt:nth-child(2) {
   z-index: 0;
 }
 
@@ -116,6 +123,15 @@ html[dir="rtl"] .editor-mount {
 
 @keyframes fade-highlight-out {
   0% { background-color: var(--theme-highlight-gray); }
+  100% { background-color: transparent; }
+}
+
+.theme-dark .highlight-line .CodeMirror-line {
+  animation: fade-highlight-out-dark 1.5s normal forwards;
+}
+
+@keyframes fade-highlight-out-dark {
+  0% { background-color: var(--theme-content-color3); }
   100% { background-color: transparent; }
 }
 

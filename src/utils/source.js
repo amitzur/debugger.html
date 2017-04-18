@@ -21,9 +21,11 @@ function trimUrlQuery(url: string): string {
   let q1 = url.indexOf("?");
   let q2 = url.indexOf("&");
   let q3 = url.indexOf("#");
-  let q = Math.min(q1 != -1 ? q1 : length,
-                   q2 != -1 ? q2 : length,
-                   q3 != -1 ? q3 : length);
+  let q = Math.min(
+    q1 != -1 ? q1 : length,
+    q2 != -1 ? q2 : length,
+    q3 != -1 ? q3 : length
+  );
 
   return url.slice(0, q);
 }
@@ -39,8 +41,10 @@ function trimUrlQuery(url: string): string {
  * @static
  */
 function isJavaScript(url: ?string, contentType: string = ""): boolean {
-  return (url && /\.(jsm|js)?$/.test(trimUrlQuery(url))) ||
-         contentType.includes("javascript");
+  return (
+    (url && /\.(jsm|js)?$/.test(trimUrlQuery(url))) ||
+    contentType.includes("javascript")
+  );
 }
 
 /**
@@ -102,7 +106,7 @@ const contentTypeModeMap = {
   "text/x-elm": "elm",
   "text/x-clojure": "clojure",
   "text/wasm": { name: "text" },
-  "html": { name: "htmlmixed" }
+  html: { name: "htmlmixed" }
 };
 
 /**
@@ -139,38 +143,6 @@ function getMode(sourceText: SourceText) {
   return { name: "text" };
 }
 
-function getContentType(url: string) {
-  if (isJavaScript(url)) {
-    return "text/javascript";
-  }
-
-  if (url.match(/ts$/)) {
-    return "text/typescript";
-  }
-
-  if (url.match(/tsx$/)) {
-    return "text/typescript-jsx";
-  }
-
-  if (url.match(/jsx$/)) {
-    return "text/jsx";
-  }
-
-  if (url.match(/coffee$/)) {
-    return "text/coffeescript";
-  }
-
-  if (url.match(/elm$/)) {
-    return "text/elm";
-  }
-
-  if (url.match(/cljs$/)) {
-    return "text/x-clojure";
-  }
-
-  return "text/plain";
-}
-
 module.exports = {
   isJavaScript,
   isPretty,
@@ -178,6 +150,5 @@ module.exports = {
   getRawSourceURL,
   getFilename,
   getFilenameFromURL,
-  getMode,
-  getContentType
+  getMode
 };

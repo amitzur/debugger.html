@@ -1,5 +1,5 @@
 // @flow
-import { DOM as dom, PropTypes, createClass } from "react";
+import { DOM as dom, PropTypes, Component } from "react";
 import { connect } from "react-redux";
 import { bindActionCreators } from "redux";
 import ImPropTypes from "react-immutable-proptypes";
@@ -18,7 +18,7 @@ type LocalBreakpoint = Breakpoint & {
   location: any,
   isCurrentlyPaused: boolean,
   locationId: string
-}
+};
 
 function isCurrentlyPausedAtBreakpoint(state, breakpoint) {
   const pause = getPause(state);
@@ -27,9 +27,7 @@ function isCurrentlyPausedAtBreakpoint(state, breakpoint) {
   }
 
   const bpId = makeLocationId(breakpoint.location);
-  const pausedId = makeLocationId(
-    pause.getIn(["frame", "location"]).toJS()
-  );
+  const pausedId = makeLocationId(pause.getIn(["frame", "location"]).toJS());
 
   return bpId === pausedId;
 }
@@ -37,28 +35,16 @@ function isCurrentlyPausedAtBreakpoint(state, breakpoint) {
 function renderSourceLocation(source, line) {
   const url = source.get("url") ? basename(source.get("url")) : null;
   // const line = url !== "" ? `: ${line}` : "";
-  return url ?
-    dom.div(
-      { className: "location" },
-      `${endTruncateStr(url, 30)}: ${line}`
-    ) : null;
+  return url
+    ? dom.div({ className: "location" }, `${endTruncateStr(url, 30)}: ${line}`)
+    : null;
 }
 
-const Breakpoints = createClass({
-  propTypes: {
-    breakpoints: ImPropTypes.map.isRequired,
-    enableBreakpoint: PropTypes.func.isRequired,
-    disableBreakpoint: PropTypes.func.isRequired,
-    selectSource: PropTypes.func.isRequired,
-    removeBreakpoint: PropTypes.func.isRequired
-  },
-
-  displayName: "Breakpoints",
-
+class Breakpoints extends Component {
   shouldComponentUpdate(nextProps, nextState) {
     const { breakpoints } = this.props;
     return breakpoints !== nextProps.breakpoints;
-  },
+  }
 
   handleCheckbox(breakpoint) {
     if (breakpoint.loading) {
@@ -70,18 +56,18 @@ const Breakpoints = createClass({
     } else {
       this.props.disableBreakpoint(breakpoint.location);
     }
-  },
+  }
 
   selectBreakpoint(breakpoint) {
     const sourceId = breakpoint.location.sourceId;
     const line = breakpoint.location.line;
     this.props.selectSource(sourceId, { line });
-  },
+  }
 
   removeBreakpoint(event, breakpoint) {
     event.stopPropagation();
     this.props.removeBreakpoint(breakpoint.location);
-  },
+  }
 
   renderBreakpoint(breakpoint) {
     const snippet = breakpoint.text || "";
@@ -89,7 +75,7 @@ const Breakpoints = createClass({
     const line = breakpoint.location.line;
     const isCurrentlyPaused = breakpoint.isCurrentlyPaused;
     const isDisabled = breakpoint.disabled;
-    const isConditional = breakpoint.condition !== null;
+    const isConditional = !!breakpoint.condition;
 
     return dom.div(
       {
@@ -109,7 +95,7 @@ const Breakpoints = createClass({
         onChange: () => this.handleCheckbox(breakpoint),
         // Prevent clicking on the checkbox from triggering the onClick of
         // the surrounding div
-        onClick: (ev) => ev.stopPropagation()
+        onClick: ev => ev.stopPropagation()
       }),
       dom.div(
         { className: "breakpoint-label", title: breakpoint.text },
@@ -117,33 +103,41 @@ const Breakpoints = createClass({
       ),
       dom.div({ className: "breakpoint-snippet" }, snippet),
       CloseButton({
-        handleClick: (ev) => this.removeBreakpoint(ev, breakpoint),
+        handleClick: ev => this.removeBreakpoint(ev, breakpoint),
         tooltip: L10N.getStr("breakpoints.removeBreakpointTooltip")
-      }));
-  },
+      })
+    );
+  }
 
   render() {
     const { breakpoints } = this.props;
     return dom.div(
       { className: "pane breakpoints-list" },
-      (breakpoints.size === 0 ?
-       dom.div({ className: "pane-info" }, L10N.getStr("breakpoints.none")) :
-       breakpoints.valueSeq().map(bp => {
-         return this.renderBreakpoint(bp);
-       }))
+      breakpoints.size === 0
+        ? dom.div({ className: "pane-info" }, L10N.getStr("breakpoints.none"))
+        : breakpoints.valueSeq().map(bp => {
+            return this.renderBreakpoint(bp);
+          })
     );
   }
-});
+}
+
+Breakpoints.displayName = "Breakpoints";
+
+Breakpoints.propTypes = {
+  breakpoints: ImPropTypes.map.isRequired,
+  enableBreakpoint: PropTypes.func.isRequired,
+  disableBreakpoint: PropTypes.func.isRequired,
+  selectSource: PropTypes.func.isRequired,
+  removeBreakpoint: PropTypes.func.isRequired
+};
 
 function updateLocation(state, bp): LocalBreakpoint {
   const source = getSource(state, bp.location.sourceId);
   const isCurrentlyPaused = isCurrentlyPausedAtBreakpoint(state, bp);
   const locationId = makeLocationId(bp.location);
 
-  const location = Object.assign({}, bp.location, {
-    source
-  });
-
+  const location = Object.assign({}, bp.location, { source });
   const localBP = Object.assign({}, bp, {
     location,
     locationId,
@@ -155,13 +149,13 @@ function updateLocation(state, bp): LocalBreakpoint {
 
 function _getBreakpoints(state) {
   return getBreakpoints(state)
-  .map(bp => updateLocation(state, bp))
-  .filter(bp => bp.location.source);
+    .map(bp => updateLocation(state, bp))
+    .filter(
+      bp => bp.location.source && !bp.location.source.get("isBlackBoxed")
+    );
 }
 
 export default connect(
-  (state, props) => ({
-    breakpoints: _getBreakpoints(state)
-  }),
+  (state, props) => ({ breakpoints: _getBreakpoints(state) }),
   dispatch => bindActionCreators(actions, dispatch)
 )(Breakpoints);

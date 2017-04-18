@@ -1,31 +1,28 @@
-const { showMenu } = require("../shared/menu");
-const { isEnabled } = require("devtools-config");
-const { isOriginalId, hasMappedSource } = require("../../utils/source-map");
-const { copyToTheClipboard } = require("../../utils/clipboard");
+import { showMenu } from "devtools-launchpad";
+import { isEnabled } from "devtools-config";
+import { isOriginalId } from "devtools-source-map";
+import { copyToTheClipboard } from "../../utils/clipboard";
 
-async function EditorMenu({
+function getMenuItems({
   codeMirror,
-  event,
   selectedLocation,
   selectedSource,
   showSource,
   onGutterContextMenu,
   jumpToMappedLocation,
+  toggleBlackBox,
   addExpression
-  }) {
+}) {
   const copySourceUrlLabel = L10N.getStr("copySourceUrl");
   const copySourceUrlKey = L10N.getStr("copySourceUrl.accesskey");
   const revealInTreeLabel = L10N.getStr("sourceTabs.revealInTree");
   const revealInTreeKey = L10N.getStr("sourceTabs.revealInTree.accesskey");
-
-  if (event.target.classList.contains("CodeMirror-linenumber")) {
-    return onGutterContextMenu(event);
-  }
-
-  event.stopPropagation();
-  event.preventDefault();
-
-  const isMapped = await hasMappedSource(selectedLocation);
+  const blackboxLabel = L10N.getStr("sourceFooter.blackbox");
+  const unblackboxLabel = L10N.getStr("sourceFooter.unblackbox");
+  const blackboxKey = L10N.getStr("sourceFooter.blackbox.accessKey");
+  const toggleBlackBoxLabel = selectedSource.get("isBlackBoxed")
+    ? unblackboxLabel
+    : blackboxLabel;
 
   const copySourceUrl = {
     id: "node-menu-copy-source",
@@ -47,7 +44,8 @@ async function EditorMenu({
   };
 
   const pairedType = isOriginalId(selectedLocation.sourceId)
-    ? L10N.getStr("generated") : L10N.getStr("original");
+    ? L10N.getStr("generated")
+    : L10N.getStr("original");
 
   const jumpLabel = {
     accesskey: "C",
@@ -62,18 +60,16 @@ async function EditorMenu({
     click: () => addExpression(codeMirror.getSelection())
   };
 
-  const menuOptions = [];
+  const blackBoxMenuItem = {
+    id: "node-menu-blackbox",
+    label: toggleBlackBoxLabel,
+    accesskey: blackboxKey,
+    disabled: false,
+    click: () => toggleBlackBox(selectedSource.toJS())
+  };
 
-  if (isMapped) {
-    menuOptions.push(jumpLabel);
-  }
-
+  // TODO: Find a new way to only add this for mapped sources?
   const textSelected = codeMirror.somethingSelected();
-  if (isEnabled("watchExpressions") && textSelected) {
-    menuOptions.push(watchExpressionLabel);
-  }
-
-  menuOptions.push(copySourceUrl);
 
   const showSourceMenuItem = {
     id: "node-menu-show-source",
@@ -82,9 +78,36 @@ async function EditorMenu({
     disabled: false,
     click: () => showSource(selectedSource.get("id"))
   };
-  menuOptions.push(showSourceMenuItem);
 
-  showMenu(event, menuOptions);
+  if (selectedSource && selectedSource.get("isBlackBoxed")) {
+    return [blackBoxMenuItem];
+  }
+
+  let menuItems = [
+    copySourceUrl,
+    jumpLabel,
+    showSourceMenuItem,
+    blackBoxMenuItem
+  ];
+
+  if (isEnabled("watchExpressions") && textSelected) {
+    menuItems.push(watchExpressionLabel);
+  }
+
+  return menuItems;
 }
 
-module.exports = EditorMenu;
+async function EditorMenu(options) {
+  const { event, onGutterContextMenu } = options;
+
+  if (event.target.classList.contains("CodeMirror-linenumber")) {
+    return onGutterContextMenu(event);
+  }
+
+  event.stopPropagation();
+  event.preventDefault();
+
+  showMenu(event, getMenuItems(options));
+}
+
+export default EditorMenu;

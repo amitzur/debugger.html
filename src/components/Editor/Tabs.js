@@ -1,24 +1,28 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes } = React;
-const ImPropTypes = require("react-immutable-proptypes");
-const { connect } = require("react-redux");
-const { bindActionCreators } = require("redux");
-const {
-  getSelectedSource, getSourceTabs,
-  getFileSearchState, getSourceByURL
-} = require("../../selectors");
-const { getFilename, isPretty } = require("../../utils/source");
-const classnames = require("classnames");
-const actions = require("../../actions");
-const CloseButton = require("../shared/Button/Close");
-const PaneToggleButton = React.createFactory(require("../shared/Button/PaneToggle"));
-const Svg = require("../shared/Svg");
-const Dropdown = React.createFactory(require("../shared/Dropdown"));
-const { showMenu, buildMenu } = require("../shared/menu");
-const debounce = require("lodash/debounce");
-const { formatKeyShortcut } = require("../../utils/text");
-require("./Tabs.css");
+
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
+import ImPropTypes from "react-immutable-proptypes";
+import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
+import {
+  getSelectedSource,
+  getSourceTabs,
+  getProjectSearchState,
+  getSourceByURL
+} from "../../selectors";
+import { getFilename, isPretty } from "../../utils/source";
+import classnames from "classnames";
+import actions from "../../actions";
+import CloseButton from "../shared/Button/Close";
+const PaneToggleButton = createFactory(
+  require("../shared/Button/PaneToggle").default
+);
+import Svg from "../shared/Svg";
+const Dropdown = createFactory(require("../shared/Dropdown").default);
+import { showMenu, buildMenu } from "devtools-launchpad";
+import debounce from "lodash/debounce";
+import { formatKeyShortcut } from "../../utils/text";
+import "./Tabs.css";
 
 /*
  * Finds the hidden tabs by comparing the tabs' top offset.
@@ -38,7 +42,9 @@ function getHiddenTabs(sourceTabs, sourceTabEls) {
 
   const tabTopOffset = getTopOffset();
   return sourceTabs.filter((tab, index) => {
-    return sourceTabEls[index].getBoundingClientRect().top > tabTopOffset;
+    // adding 10px helps account for cases where the tab might be offset by
+    // styling such as selected tabs which don't have a border.
+    return sourceTabEls[index].getBoundingClientRect().top > tabTopOffset + 10;
   });
 }
 
@@ -57,50 +63,73 @@ function copyToTheClipboard(string) {
   document.removeEventListener("copy", doCopy);
 }
 
-const SourceTabs = React.createClass({
-  propTypes: {
-    sourceTabs: ImPropTypes.list.isRequired,
-    selectedSource: ImPropTypes.map,
-    selectSource: PropTypes.func.isRequired,
-    closeTab: PropTypes.func.isRequired,
-    closeTabs: PropTypes.func.isRequired,
-    toggleFileSearch: PropTypes.func.isRequired,
-    togglePrettyPrint: PropTypes.func.isRequired,
-    togglePaneCollapse: PropTypes.func.isRequired,
-    showSource: PropTypes.func.isRequired,
-    horizontal: PropTypes.bool.isRequired,
-    startPanelCollapsed: PropTypes.bool.isRequired,
-    endPanelCollapsed: PropTypes.bool.isRequired,
-  },
+type State = {
+  dropdownShown: boolean,
+  hiddenSourceTabs: Array<Object> | null
+};
 
-  displayName: "SourceTabs",
+class SourceTabs extends Component {
+  state: State;
+  onTabContextMenu: Function;
+  showContextMenu: Function;
+  updateHiddenSourceTabs: Function;
+  toggleSourcesDropdown: Function;
+  renderDropdownSource: Function;
+  renderTabs: Function;
+  renderTab: Function;
+  renderNewButton: Function;
+  renderDropDown: Function;
+  renderStartPanelToggleButton: Function;
+  renderEndPanelToggleButton: Function;
+  onResize: Function;
 
-  getInitialState() {
-    return {
+  constructor(props) {
+    super(props);
+    this.state = {
       dropdownShown: false,
       hiddenSourceTabs: null
     };
-  },
+
+    this.onTabContextMenu = this.onTabContextMenu.bind(this);
+    this.showContextMenu = this.showContextMenu.bind(this);
+    this.updateHiddenSourceTabs = this.updateHiddenSourceTabs.bind(this);
+    this.toggleSourcesDropdown = this.toggleSourcesDropdown.bind(this);
+    this.renderDropdownSource = this.renderDropdownSource.bind(this);
+    this.renderTabs = this.renderTabs.bind(this);
+    this.renderTab = this.renderTab.bind(this);
+    this.renderNewButton = this.renderNewButton.bind(this);
+    this.renderDropDown = this.renderDropdown.bind(this);
+    this.renderStartPanelToggleButton = this.renderStartPanelToggleButton.bind(
+      this
+    );
+    this.renderEndPanelToggleButton = this.renderEndPanelToggleButton.bind(
+      this
+    );
+
+    this.onResize = debounce(() => {
+      this.updateHiddenSourceTabs();
+    });
+  }
 
   componentDidUpdate(prevProps) {
     if (!(prevProps === this.props)) {
       this.updateHiddenSourceTabs();
     }
-  },
+  }
 
   componentDidMount() {
     this.updateHiddenSourceTabs();
     window.addEventListener("resize", this.onResize);
-  },
+  }
 
   componentWillUnmount() {
     window.removeEventListener("resize", this.onResize);
-  },
+  }
 
   onTabContextMenu(event, tab) {
     event.preventDefault();
     this.showContextMenu(event, tab);
-  },
+  }
 
   showContextMenu(e, tab) {
     const {
@@ -108,7 +137,8 @@ const SourceTabs = React.createClass({
       closeTabs,
       sourceTabs,
       showSource,
-      togglePrettyPrint } = this.props;
+      togglePrettyPrint
+    } = this.props;
 
     const closeTabLabel = L10N.getStr("sourceTabs.closeTab");
     const closeOtherTabsLabel = L10N.getStr("sourceTabs.closeOtherTabs");
@@ -119,10 +149,12 @@ const SourceTabs = React.createClass({
     const prettyPrintLabel = L10N.getStr("sourceTabs.prettyPrint");
 
     const closeTabKey = L10N.getStr("sourceTabs.closeTab.accesskey");
-    const closeOtherTabsKey =
-      L10N.getStr("sourceTabs.closeOtherTabs.accesskey");
-    const closeTabsToEndKey =
-      L10N.getStr("sourceTabs.closeTabsToEnd.accesskey");
+    const closeOtherTabsKey = L10N.getStr(
+      "sourceTabs.closeOtherTabs.accesskey"
+    );
+    const closeTabsToEndKey = L10N.getStr(
+      "sourceTabs.closeTabsToEnd.accesskey"
+    );
     const closeAllTabsKey = L10N.getStr("sourceTabs.closeAllTabs.accesskey");
     const revealInTreeKey = L10N.getStr("sourceTabs.revealInTree.accesskey");
     const copyLinkKey = L10N.getStr("sourceTabs.copyLink.accesskey");
@@ -197,24 +229,22 @@ const SourceTabs = React.createClass({
     const items = [
       { item: closeTabMenuItem },
       { item: closeOtherTabsMenuItem, hidden: () => tabs.size === 1 },
-      { item: closeTabsToEndMenuItem, hidden: () =>
-         tabs.some((t, i) => t === tab && (tabs.size - 1) === i) },
+      {
+        item: closeTabsToEndMenuItem,
+        hidden: () => tabs.some((t, i) => t === tab && tabs.size - 1 === i)
+      },
       { item: closeAllTabsMenuItem },
-      { item: { type: "separator" }},
-      { item: copySourceUrl },
-      { item: showSourceMenuItem }
+      { item: { type: "separator" } },
+      { item: copySourceUrl }
     ];
 
     if (!isPrettySource) {
+      items.push({ item: showSourceMenuItem });
       items.push({ item: prettyPrint });
     }
 
     showMenu(e, buildMenu(items));
-  },
-
-  onResize: debounce(function() {
-    this.updateHiddenSourceTabs();
-  }),
+  }
 
   /*
    * Updates the hiddenSourceTabs state, by
@@ -224,33 +254,39 @@ const SourceTabs = React.createClass({
     if (!this.refs.sourceTabs) {
       return;
     }
-
-    const sourceTabs = this.props.sourceTabs;
+    const { selectedSource, sourceTabs, selectSource } = this.props;
     const sourceTabEls = this.refs.sourceTabs.children;
     const hiddenSourceTabs = getHiddenTabs(sourceTabs, sourceTabEls);
 
+    if (hiddenSourceTabs.indexOf(selectedSource) !== -1) {
+      return selectSource(selectedSource.get("id"), { tabIndex: 0 });
+    }
+
     this.setState({ hiddenSourceTabs });
-  },
+  }
 
   toggleSourcesDropdown(e) {
     this.setState({
-      dropdownShown: !this.state.dropdownShown,
+      dropdownShown: !this.state.dropdownShown
     });
-  },
+  }
 
   renderDropdownSource(source) {
     const { selectSource } = this.props;
     const filename = getFilename(source.toJS());
 
-    return dom.li({
-      key: source.get("id"),
-      onClick: () => {
-        // const tabIndex = getLastVisibleTabIndex(sourceTabs, sourceTabEls);
-        const tabIndex = 0;
-        selectSource(source.get("id"), { tabIndex });
-      }
-    }, filename);
-  },
+    return dom.li(
+      {
+        key: source.get("id"),
+        onClick: () => {
+          // const tabIndex = getLastVisibleTabIndex(sourceTabs, sourceTabEls);
+          const tabIndex = 0;
+          selectSource(source.get("id"), { tabIndex });
+        }
+      },
+      filename
+    );
+  }
 
   renderTabs() {
     const sourceTabs = this.props.sourceTabs;
@@ -258,13 +294,13 @@ const SourceTabs = React.createClass({
       { className: "source-tabs", ref: "sourceTabs" },
       sourceTabs.map(this.renderTab)
     );
-  },
+  }
 
   renderTab(source) {
     const { selectedSource, selectSource, closeTab } = this.props;
     const filename = getFilename(source.toJS());
-    const active = selectedSource &&
-                   (source.get("id") == selectedSource.get("id"));
+    const active =
+      selectedSource && source.get("id") == selectedSource.get("id");
     const isPrettyCode = isPretty(source.toJS());
 
     function onClickClose(ev) {
@@ -280,7 +316,7 @@ const SourceTabs = React.createClass({
         }),
         key: source.get("id"),
         onClick: () => selectSource(source.get("id")),
-        onContextMenu: (e) => this.onTabContextMenu(e, source.get("id")),
+        onContextMenu: e => this.onTabContextMenu(e, source.get("id")),
         title: getFilename(source.toJS())
       },
       isPrettyCode ? Svg("prettyPrint") : null,
@@ -288,18 +324,24 @@ const SourceTabs = React.createClass({
       CloseButton({
         handleClick: onClickClose,
         tooltip: L10N.getStr("sourceTabs.closeTabButtonTooltip")
-      }));
-  },
+      })
+    );
+  }
 
   renderNewButton() {
-    const newTabTooltip = L10N.getFormatStr("sourceTabs.newTabButtonTooltip",
-      formatKeyShortcut(`CmdOrCtrl+${L10N.getStr("sources.search.key")}`));
-    return dom.div({
-      className: "new-tab-btn",
-      onClick: () => this.props.toggleFileSearch(),
-      title: newTabTooltip
-    }, Svg("plus"));
-  },
+    const newTabTooltip = L10N.getFormatStr(
+      "sourceTabs.newTabButtonTooltip",
+      formatKeyShortcut(`CmdOrCtrl+${L10N.getStr("sources.search.key")}`)
+    );
+    return dom.div(
+      {
+        className: "new-tab-btn",
+        onClick: () => this.props.toggleProjectSearch(),
+        title: newTabTooltip
+      },
+      Svg("plus")
+    );
+  }
 
   renderDropdown() {
     const hiddenSourceTabs = this.state.hiddenSourceTabs;
@@ -310,7 +352,7 @@ const SourceTabs = React.createClass({
     return Dropdown({
       panel: dom.ul({}, hiddenSourceTabs.map(this.renderDropdownSource))
     });
-  },
+  }
 
   renderStartPanelToggleButton() {
     return PaneToggleButton({
@@ -318,7 +360,7 @@ const SourceTabs = React.createClass({
       collapsed: !this.props.startPanelCollapsed,
       handleClick: this.props.togglePaneCollapse
     });
-  },
+  }
 
   renderEndPanelToggleButton() {
     if (!this.props.horizontal) {
@@ -331,10 +373,11 @@ const SourceTabs = React.createClass({
       handleClick: this.props.togglePaneCollapse,
       horizontal: this.props.horizontal
     });
-  },
+  }
 
   render() {
-    return dom.div({ className: "source-header" },
+    return dom.div(
+      { className: "source-header" },
       this.renderStartPanelToggleButton(),
       this.renderTabs(),
       this.renderNewButton(),
@@ -342,11 +385,27 @@ const SourceTabs = React.createClass({
       this.renderEndPanelToggleButton()
     );
   }
-});
+}
+
+SourceTabs.propTypes = {
+  sourceTabs: ImPropTypes.list.isRequired,
+  selectedSource: ImPropTypes.map,
+  selectSource: PropTypes.func.isRequired,
+  closeTab: PropTypes.func.isRequired,
+  closeTabs: PropTypes.func.isRequired,
+  toggleProjectSearch: PropTypes.func.isRequired,
+  togglePrettyPrint: PropTypes.func.isRequired,
+  togglePaneCollapse: PropTypes.func.isRequired,
+  showSource: PropTypes.func.isRequired,
+  horizontal: PropTypes.bool.isRequired,
+  startPanelCollapsed: PropTypes.bool.isRequired,
+  endPanelCollapsed: PropTypes.bool.isRequired
+};
+
+SourceTabs.displayName = "SourceTabs";
 
 function getTabs(state) {
-  return getSourceTabs(state)
-    .map(url => getSourceByURL(state, url));
+  return getSourceTabs(state).map(url => getSourceByURL(state, url));
 }
 
 module.exports = connect(
@@ -354,7 +413,7 @@ module.exports = connect(
     return {
       selectedSource: getSelectedSource(state),
       sourceTabs: getTabs(state),
-      searchOn: getFileSearchState(state)
+      searchOn: getProjectSearchState(state)
     };
   },
   dispatch => bindActionCreators(actions, dispatch)

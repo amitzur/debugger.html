@@ -1,4 +1,3 @@
-
 const {
   initDebugger,
   invokeInTab,
@@ -10,12 +9,11 @@ const {
   waitForPaused,
   resume,
   selectSource,
-  waitForSources,
-} = require("../utils")
-
+  waitForSources
+} = require("../utils");
 
 async function asm(ctx) {
-  const {is} = ctx;
+  const { is } = ctx;
   const dbg = await initDebugger("doc-asm.html");
 
   const { selectors: { getSelectedSource }, getState } = dbg;
@@ -35,7 +33,7 @@ async function asm(ctx) {
   clickElement(dbg, "sourceArrow", 2);
   is(findAllElements(dbg, "sourceNodes").length, 4);
 
-  selectSource(dbg, 'asm.js');
+  selectSource(dbg, "asm.js");
 
   await addBreakpoint(dbg, "asm.js", 7);
   invokeInTab(dbg, "runAsm");

@@ -1,14 +1,15 @@
 // @flow
-const React = require("react");
-const { DOM: dom } = React;
+import { DOM as dom } from "react";
 
 const ReactDOM = require("react-dom");
-const CloseButton = require("../shared/Button/Close");
+import CloseButton from "../shared/Button/Close";
+import "./ConditionalPanel.css";
 
-require("./ConditionalPanel.css");
-
-function renderConditionalPanel({ condition, closePanel, setBreakpoint }:
-  { condition: ?string, closePanel: Function, setBreakpoint: Function }) {
+function renderConditionalPanel({
+  condition,
+  closePanel,
+  setBreakpoint
+}: { condition: ?string, closePanel: Function, setBreakpoint: Function }) {
   let panel = document.createElement("div");
   let input = null;
 
@@ -54,6 +55,4 @@ function renderConditionalPanel({ condition, closePanel, setBreakpoint }:
   return panel;
 }
 
-module.exports = {
-  renderConditionalPanel
-};
+export { renderConditionalPanel };

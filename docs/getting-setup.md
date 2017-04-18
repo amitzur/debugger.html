@@ -55,7 +55,7 @@ Try this [first activity][first-activity] if you want to start debugging the deb
 This setup is for people on the DevTools team and DevTools wizards.
 
 ```bash
-curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 0.19.1
+curl -o- -L https://yarnpkg.com/install.sh | bash -s
 git clone git@github.com:devtools-html/debugger.html.git
 cd debugger.html
 yarn install
@@ -172,8 +172,15 @@ If you find any issues on these two platforms comment on these issues:
 "C:\Program Files (x86)\Mozilla Firefox\firefox.exe" -start-debugger-server 6080 -P development
 ```
 
+### Debugger examples
+
+Starting Firefox or Chrome following the previous steps opens the browser on [the online debugger examples][debugger-examples].
+
+If you want to hack the debugger even with being offline, you might want to get [the repo containing those examples][debugger-examples] to run them locally.
+
 [debugger-intro-gif]:http://g.recordit.co/WjHZaXKifZ.gif
 [debugger-examples]:https://devtools-html.github.io/debugger-examples/
+[debugger-examples-repo]:https://github.com/devtools-html/debugger-examples
 [yarn-run-firefox-fails]:https://github.com/devtools-html/debugger.html/issues/1341
 [linux-issue]:https://github.com/devtools-html/debugger.html/issues/1082
 [windows-issue]:https://github.com/devtools-html/debugger.html/issues/1248

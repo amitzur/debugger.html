@@ -1,9 +1,6 @@
 // @flow
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import zip from "lodash/zip";
 
 /**
  * Utils for utils, by utils
@@ -46,40 +43,11 @@ function endTruncateStr(str: any, size: number) {
   return str;
 }
 
-let msgId = 1;
 /**
  * @memberof utils/utils
  * @static
  */
-function workerTask(worker: any, method: string) {
-  return function(...args: any) {
-    return new Promise((resolve, reject) => {
-      const id = msgId++;
-      worker.postMessage({ id, method, args });
-
-      const listener = ({ data: result }) => {
-        if (result.id !== id) {
-          return;
-        }
-
-        worker.removeEventListener("message", listener);
-        if (result.error) {
-          reject(result.error);
-        } else {
-          resolve(result.response);
-        }
-      };
-
-      worker.addEventListener("message", listener);
-    });
-  };
-}
-
-/**
- * @memberof utils/utils
- * @static
- */
-function updateObj<T: Object>(obj: T, fields: $Shape<T>) : T {
+function updateObj<T: Object>(obj: T, fields: $Shape<T>): T {
   return Object.assign({}, obj, fields);
 }
 
@@ -104,12 +72,23 @@ function waitForMs(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+type duplicatesPredicate = (any, any) => boolean;
+function filterDuplicates(list: Object[], predicate: duplicatesPredicate) {
+  if (list.length == 0) {
+    return [];
+  }
+
+  const lastItem = list[list.length - 1];
+  const pairs = zip(list.slice(1), list.slice(0, -1));
+  return pairs.filter(predicate).map(([prev, item]) => item).concat(lastItem);
+}
+
 module.exports = {
   handleError,
   promisify,
   endTruncateStr,
-  workerTask,
   updateObj,
   throttle,
-  waitForMs
+  waitForMs,
+  filterDuplicates
 };

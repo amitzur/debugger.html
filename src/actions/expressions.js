@@ -1,9 +1,8 @@
 // @flow
 
-const constants = require("../constants");
-const { PROMISE } = require("../utils/redux/middleware/promise");
-
-const { getExpressions, getSelectedFrame } = require("../selectors");
+import constants from "../constants";
+import { PROMISE } from "../utils/redux/middleware/promise";
+import { getExpression, getExpressions, getSelectedFrame } from "../selectors";
 
 import type { Expression } from "../types";
 import type { ThunkArgs } from "./types";
@@ -22,25 +21,31 @@ function expressionExists(expressions, input) {
  * @memberof actions/pause
  * @static
  */
-function addExpression(input: string) {
-  return ({ dispatch, getState }: ThunkArgs) => {
+export function addExpression(input: string, { visible = true }: Object = {}) {
+  return async ({ dispatch, getState }: ThunkArgs) => {
     const expressions = getExpressions(getState());
     if (!input || expressionExists(expressions, input)) {
-      return;
+      const expression = getExpression(getState(), input);
+      if (!expression.visible && visible) {
+        await dispatch(deleteExpression(expression));
+      } else {
+        return;
+      }
     }
 
     dispatch({
       type: constants.ADD_EXPRESSION,
-      input
+      input,
+      visible
     });
 
     const selectedFrame = getSelectedFrame(getState());
     const selectedFrameId = selectedFrame ? selectedFrame.id : null;
-    dispatch(evaluateExpression({ input }, selectedFrameId));
+    dispatch(evaluateExpression({ input, visible }, selectedFrameId));
   };
 }
 
-function updateExpression(input: string, expression: Expression) {
+export function updateExpression(input: string, expression: Expression) {
   return ({ dispatch, getState }: ThunkArgs) => {
     if (!input || input == expression.input) {
       return;
@@ -49,7 +54,8 @@ function updateExpression(input: string, expression: Expression) {
     dispatch({
       type: constants.UPDATE_EXPRESSION,
       expression,
-      input: input
+      input: input,
+      visible: expression.visible
     });
 
     const selectedFrame = getSelectedFrame(getState());
@@ -65,7 +71,7 @@ function updateExpression(input: string, expression: Expression) {
  * @memberof actions/pause
  * @static
  */
-function deleteExpression(expression: Expression) {
+export function deleteExpression(expression: Expression) {
   return ({ dispatch }: ThunkArgs) => {
     dispatch({
       type: constants.DELETE_EXPRESSION,
@@ -80,9 +86,14 @@ function deleteExpression(expression: Expression) {
  * @param {number} selectedFrameId
  * @static
  */
-function evaluateExpressions(frameId: frameIdType) {
+export function evaluateExpressions(frameId: frameIdType) {
   return async function({ dispatch, getState, client }: ThunkArgs) {
-    for (let expression of getExpressions(getState())) {
+    const expressions = getExpressions(getState()).toJS();
+    if (!frameId) {
+      const selectedFrame = getSelectedFrame(getState());
+      frameId = selectedFrame ? selectedFrame.id : null;
+    }
+    for (let expression of expressions) {
       await dispatch(evaluateExpression(expression, frameId));
     }
   };
@@ -98,14 +109,8 @@ function evaluateExpression(expression, frameId: frameIdType) {
     return dispatch({
       type: constants.EVALUATE_EXPRESSION,
       input: expression.input,
+      visible: expression.visible,
       [PROMISE]: client.evaluate(expression.input, { frameId })
     });
   };
 }
-
-module.exports = {
-  addExpression,
-  updateExpression,
-  deleteExpression,
-  evaluateExpressions,
-};

@@ -18,10 +18,12 @@ export type CoverageState = {
   hitCount: Object
 };
 
-const State = makeRecord(({
-  coverageOn: false,
-  hitCount: I.Map()
-} : CoverageState));
+const State = makeRecord(
+  ({
+    coverageOn: false,
+    hitCount: I.Map()
+  }: CoverageState)
+);
 
 function update(state = State(), action: Action): Record<CoverageState> {
   switch (action.type) {

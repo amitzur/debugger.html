@@ -9,9 +9,9 @@
  * @module actions/event-listeners
  */
 
-const constants = require("../constants");
-const { reportException } = require("../utils/DevToolsUtils");
-const { getPause, getSourceByURL } = require("../selectors");
+import constants from "../constants";
+import { reportException } from "../utils/DevToolsUtils";
+import { getPause, getSourceByURL } from "../selectors";
 
 // delay is in ms
 const FETCH_EVENT_LISTENERS_DELAY = 200;
@@ -46,7 +46,7 @@ async function asPaused(state: any, client: any, func: any) {
  * @memberof actions/event-listeners
  * @static
  */
-function fetchEventListeners() {
+export function fetchEventListeners() {
   return ({ dispatch, getState, client }) => {
     // Make sure we"re not sending a batch of closely repeated requests.
     // This can easily happen whenever new sources are fetched.
@@ -54,36 +54,34 @@ function fetchEventListeners() {
       clearTimeout(fetchListenersTimerID);
     }
 
-    fetchListenersTimerID = setTimeout(
-        () => {
-          // In case there is still a request of listeners going on (it
-          // takes several RDP round trips right now), make sure we wait
-          // on a currently running request
-          if (getState().eventListeners.fetchingListeners) {
-            dispatch({
-              type: services.WAIT_UNTIL,
-              predicate: action => (
-                action.type === constants.FETCH_EVENT_LISTENERS &&
-                action.status === "done"
-              ),
-              run: dispatch => dispatch(fetchEventListeners())
-            });
-            return;
-          }
+    fetchListenersTimerID = setTimeout(() => {
+      // In case there is still a request of listeners going on (it
+      // takes several RDP round trips right now), make sure we wait
+      // on a currently running request
+      if (getState().eventListeners.fetchingListeners) {
+        dispatch({
+          type: services.WAIT_UNTIL,
+          predicate: action =>
+            action.type === constants.FETCH_EVENT_LISTENERS &&
+            action.status === "done",
+          run: dispatch => dispatch(fetchEventListeners())
+        });
+        return;
+      }
 
-          dispatch({
-            type: constants.FETCH_EVENT_LISTENERS,
-            status: "begin"
-          });
+      dispatch({
+        type: constants.FETCH_EVENT_LISTENERS,
+        status: "begin"
+      });
 
-          asPaused(getState(), client, _getEventListeners).then(listeners => {
-            dispatch({
-              type: constants.FETCH_EVENT_LISTENERS,
-              status: "done",
-              listeners: formatListeners(getState(), listeners)
-            });
-          });
-        }, FETCH_EVENT_LISTENERS_DELAY);
+      asPaused(getState(), client, _getEventListeners).then(listeners => {
+        dispatch({
+          type: constants.FETCH_EVENT_LISTENERS,
+          status: "done",
+          listeners: formatListeners(getState(), listeners)
+        });
+      });
+    }, FETCH_EVENT_LISTENERS_DELAY);
   };
 }
 
@@ -103,7 +101,7 @@ async function _getEventListeners(threadClient) {
 
   // Make sure all the listeners are sorted by the event type, since
   // they"re not guaranteed to be clustered together.
-  response.listeners.sort((a, b) => a.type > b.type ? 1 : -1);
+  response.listeners.sort((a, b) => (a.type > b.type ? 1 : -1));
 
   // Add all the listeners in the debugger view event linsteners container.
   let fetchedDefinitions = new Map();
@@ -153,7 +151,7 @@ async function _getDefinitionSite(threadClient, func) {
  * @static
  * @param {string} eventNames
  */
-function updateEventBreakpoints(eventNames) {
+export function updateEventBreakpoints(eventNames) {
   return dispatch => {
     setNamedTimeout("event-breakpoints-update", 0, () => {
       gThreadClient.pauseOnDOMEvents(eventNames, function() {
@@ -168,5 +166,3 @@ function updateEventBreakpoints(eventNames) {
     });
   };
 }
-
-module.exports = { updateEventBreakpoints, fetchEventListeners };

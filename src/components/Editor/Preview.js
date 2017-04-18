@@ -4,15 +4,16 @@ import React from "react";
 import { connect } from "react-redux";
 import { bindActionCreators } from "redux";
 import actions from "../../actions";
-const ObjectInspector = React.createFactory(require("../shared/ObjectInspector"));
-const Popover = React.createFactory(require("../shared/Popover"));
-const previewFunction = require("../shared/previewFunction");
+const ObjectInspector = React.createFactory(
+  require("../shared/ObjectInspector").default
+);
+const Popover = React.createFactory(require("../shared/Popover").default);
+const previewFunction = require("../shared/previewFunction").default;
 
 import { getLoadedObjects } from "../../selectors";
 import { getChildren } from "../../utils/object-inspector";
-import { getFilenameFromURL } from "../../utils/source";
 
-const Rep = require("../shared/Rep");
+const Rep = require("../shared/Rep").default;
 const { MODE } = require("devtools-reps");
 
 const { DOM: dom, PropTypes, Component } = React;
@@ -20,7 +21,6 @@ const { DOM: dom, PropTypes, Component } = React;
 require("./Preview.css");
 
 class Preview extends Component {
-
   componentDidMount() {
     const { loadObjectProperties, loadedObjects, value } = this.props;
 
@@ -49,48 +49,32 @@ class Preview extends Component {
     return [root];
   }
 
-  renderFunctionPreview(expression, root) {
+  renderFunctionPreview(value, root) {
     const { selectSourceURL } = this.props;
-
-    const value = root.contents.value;
-    const { location: { url, line }} = value;
-    const filename = getFilenameFromURL(url);
+    const { location } = value;
 
     return dom.div(
-      { className: "preview" },
-      dom.div(
-        { className: "header" },
-        dom.a(
-          {
-            className: "link",
-            onClick: () => selectSourceURL(url, { line })
-          },
-          filename
-        )
-      ),
+      {
+        className: "preview",
+        onClick: () => selectSourceURL(location.url, { line: location.line })
+      },
       previewFunction(value)
     );
   }
 
   renderObjectPreview(expression, root) {
-    return dom.div(
-      { className: "preview" },
-      this.renderObjectInspector(root)
-    );
+    return dom.div({ className: "preview" }, this.renderObjectInspector(root));
   }
 
   renderSimplePreview(value) {
     return dom.div(
       { className: "preview" },
-       Rep({ object: value, mode: MODE.LONG })
+      Rep({ object: value, mode: MODE.LONG })
     );
   }
 
   renderObjectInspector(root) {
-    const {
-      loadObjectProperties,
-      loadedObjects
-    } = this.props;
+    const { loadObjectProperties, loadedObjects } = this.props;
 
     const getObjectProperties = id => loadedObjects.get(id);
     const roots = this.getChildren(root, getObjectProperties);
@@ -113,7 +97,7 @@ class Preview extends Component {
     };
 
     if (value.class === "Function") {
-      return this.renderFunctionPreview(expression, root);
+      return this.renderFunctionPreview(value, root);
     }
 
     if (value.type === "object") {
@@ -124,17 +108,15 @@ class Preview extends Component {
   }
 
   render() {
-    const {
-      popoverTarget,
-      onClose,
-      value,
-      expression
-    } = this.props;
+    const { popoverTarget, onClose, value, expression } = this.props;
+
+    let type = value.class === "Function" ? "tooltip" : "popover";
 
     return Popover(
       {
         target: popoverTarget,
-        onMouseLeave: onClose
+        onMouseLeave: onClose,
+        type
       },
       this.renderPreview(expression, value)
     );

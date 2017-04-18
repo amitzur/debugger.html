@@ -31,11 +31,15 @@ function SearchState() {
  */
 function getSearchState(cm: any, query, modifiers) {
   let state = cm.state.search || (cm.state.search = new SearchState());
-  let cursor = getSearchCursor(cm, query, null, modifiers);
 
-  state.results = [];
-  while (cursor.findNext()) {
-    state.results.push(cursor.pos);
+  // avoid generating a cursor and iterating over the results for an empty query
+  if (query) {
+    let cursor = getSearchCursor(cm, query, null, modifiers);
+
+    state.results = [];
+    while (cursor.findNext()) {
+      state.results.push(cursor.pos);
+    }
   }
 
   return state;
@@ -197,24 +201,14 @@ function searchNext(ctx, rev, query, newQuery, modifiers) {
   cm.operation(function() {
     let state = getSearchState(cm, query, modifiers);
     const pos = getCursorPos(newQuery, rev, state);
-    let cursor = getSearchCursor(
-      cm,
-      state.query,
-      pos,
-      modifiers
-    );
+    let cursor = getSearchCursor(cm, state.query, pos, modifiers);
 
     const location = rev
       ? { line: cm.lastLine(), ch: null }
       : { line: cm.firstLine(), ch: 0 };
 
     if (!cursor.find(rev)) {
-      cursor = getSearchCursor(
-        cm,
-        state.query,
-        location,
-        modifiers
-      );
+      cursor = getSearchCursor(cm, state.query, location, modifiers);
       if (!cursor.find(rev)) {
         return;
       }
@@ -272,7 +266,11 @@ function clearSearch(cm, query: string, modifiers: SearchModifiers) {
  * @static
  */
 function find(
-  ctx: any, query: string, keepSelection: boolean, modifiers: SearchModifiers) {
+  ctx: any,
+  query: string,
+  keepSelection: boolean,
+  modifiers: SearchModifiers
+) {
   clearSearch(ctx.cm, query, modifiers);
   return doSearch(ctx, false, query, keepSelection, modifiers);
 }
@@ -284,7 +282,11 @@ function find(
  * @static
  */
 function findNext(
-  ctx: any, query: string, keepSelection: boolean, modifiers: SearchModifiers) {
+  ctx: any,
+  query: string,
+  keepSelection: boolean,
+  modifiers: SearchModifiers
+) {
   return doSearch(ctx, false, query, keepSelection, modifiers);
 }
 
@@ -295,7 +297,11 @@ function findNext(
  * @static
  */
 function findPrev(
-  ctx: any, query: string, keepSelection :boolean, modifiers: SearchModifiers) {
+  ctx: any,
+  query: string,
+  keepSelection: boolean,
+  modifiers: SearchModifiers
+) {
   return doSearch(ctx, true, query, keepSelection, modifiers);
 }
 
@@ -305,7 +311,10 @@ function clearIndex(ctx: any, query: string, modifiers: SearchModifiers) {
 }
 
 function countMatches(
-  query: string, text: string, modifiers: SearchModifiers): number {
+  query: string,
+  text: string,
+  modifiers: SearchModifiers
+): number {
   const regexQuery = buildQuery(query, modifiers, {
     isGlobal: true
   });

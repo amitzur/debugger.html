@@ -29,11 +29,13 @@ module.exports = async function(ctx) {
   // Test that breakpoint is not off by a line.
   await addBreakpoint(dbg, mainSrc, 4);
   is(getBreakpoints(getState()).size, 1, "One breakpoint exists");
-  ok(getBreakpoint(getState(), { sourceId: mainSrc.id, line: 4 }),
-     "Breakpoint has correct line");
+  ok(
+    getBreakpoint(getState(), { sourceId: mainSrc.id, line: 4 }),
+    "Breakpoint has correct line"
+  );
 
   invokeInTab(dbg, "logMessage");
 
   await waitForPaused(dbg);
   assertPausedLocation(dbg, ctx, "main.js", 4);
-}
+};

@@ -1,109 +1,121 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
-
+import { DOM as dom, PropTypes, createFactory, Component } from "react";
 const ReactDOM = require("react-dom");
-const ImPropTypes = require("react-immutable-proptypes");
-const { bindActionCreators } = require("redux");
-const { connect } = require("react-redux");
-const classnames = require("classnames");
+import ImPropTypes from "react-immutable-proptypes";
+import { bindActionCreators } from "redux";
+import { connect } from "react-redux";
+import classnames from "classnames";
+import debounce from "lodash/debounce";
+import { getMode } from "../../utils/source";
 
-const { getMode } = require("../../utils/source");
-const { getExpression } = require("../../utils/parser");
-
-const Footer = createFactory(require("./Footer"));
-const SearchBar = createFactory(require("./SearchBar"));
-const GutterMenu = require("./GutterMenu");
-const EditorMenu = require("./EditorMenu");
+const Footer = createFactory(require("./Footer").default);
+const SearchBar = createFactory(require("./SearchBar").default);
+import GutterMenu from "./GutterMenu";
+import EditorMenu from "./EditorMenu";
 const Preview = createFactory(require("./Preview").default);
-const { renderConditionalPanel } = require("./ConditionalPanel");
-const { debugGlobal } = require("devtools-launchpad");
-const { isEnabled } = require("devtools-config");
-const {
-  getSourceText, getBreakpointsForSource,
-  getSelectedLocation, getSelectedFrame,
-  getSelectedSource, getHitCountForSource,
-  getCoverageEnabled, getLoadedObjects
-} = require("../../selectors");
-const { makeLocationId } = require("../../reducers/breakpoints");
-const actions = require("../../actions");
-const Breakpoint = React.createFactory(require("./Breakpoint"));
-const HitMarker = React.createFactory(require("./HitMarker"));
+import { renderConditionalPanel } from "./ConditionalPanel";
+import { debugGlobal } from "devtools-launchpad";
+import { isEnabled } from "devtools-config";
+import {
+  getSourceText,
+  getFileSearchState,
+  getBreakpointsForSource,
+  getSelectedLocation,
+  getSelectedFrame,
+  getSelectedSource,
+  getExpression,
+  getHitCountForSource,
+  getCoverageEnabled,
+  getLoadedObjects,
+  getPause,
+  getFileSearchQueryState,
+  getFileSearchModifierState
+} from "../../selectors";
+import { makeLocationId } from "../../reducers/breakpoints";
+import actions from "../../actions";
+const Breakpoint = createFactory(require("./Breakpoint").default);
+const HitMarker = createFactory(require("./HitMarker").default);
 
-import type { Location } from "../../types";
-
-const {
+import {
   getDocument,
   setDocument,
+  updateDocument,
   shouldShowFooter,
   clearLineClass,
-  onKeyDown,
   createEditor,
   isTextForSource,
   breakpointAtLine,
   getTextForLine,
   getCursorLine,
-  getTokenLocation,
+  resolveToken,
+  previewExpression,
+  getExpressionValue,
   resizeBreakpointGutter,
   traverseResults
-} = require("../../utils/editor");
-const { isFirefox } = require("devtools-config");
+} from "../../utils/editor";
+import { getVisibleVariablesFromScope } from "../../utils/scopes";
+import { isFirefox } from "devtools-config";
+import "./Editor.css";
 
-require("./Editor.css");
+const cssVars = {
+  searchbarHeight: "var(--editor-searchbar-height)",
+  secondSearchbarHeight: "var(--editor-second-searchbar-height)",
+  footerHeight: "var(--editor-footer-height)"
+};
 
-function getExpressionFromToken(
-  cm: any, sourceText, token: HTMLElement) {
-  const loc = getTokenLocation(token, cm);
-  return getExpression(sourceText.toJS(), token.innerText || "", loc);
-}
-
-const Editor = React.createClass({
-  propTypes: {
-    breakpoints: ImPropTypes.map.isRequired,
-    hitCount: PropTypes.object,
-    selectedLocation: PropTypes.object.isRequired,
-    selectedSource: ImPropTypes.map,
-    sourceText: ImPropTypes.map,
-    addBreakpoint: PropTypes.func.isRequired,
-    disableBreakpoint: PropTypes.func.isRequired,
-    enableBreakpoint: PropTypes.func.isRequired,
-    removeBreakpoint: PropTypes.func.isRequired,
-    setBreakpointCondition: PropTypes.func.isRequired,
-    selectSource: PropTypes.func,
-    jumpToMappedLocation: PropTypes.func,
-    showSource: PropTypes.func,
-    coverageOn: PropTypes.bool,
-    selectedFrame: PropTypes.object,
-    addExpression: PropTypes.func,
-    horizontal: PropTypes.bool
+type EditorState = {
+  searchResults: {
+    index: number,
+    count: number
   },
+  selectedToken: ?Object,
+  selectedExpression: ?Object
+};
 
-  cbPanel: (null : any),
-  editor: (null : any),
-  pendingJumpLine: (null : any),
-  lastJumpLine: (null : any),
+class Editor extends Component {
+  cbPanel: any;
+  editor: any;
+  pendingJumpLine: any;
+  lastJumpLine: any;
+  state: EditorState;
 
-  displayName: "Editor",
+  constructor() {
+    super();
 
-  getInitialState() {
-    return {
-      query: "",
+    this.cbPanel = null;
+    this.editor = null;
+    this.pendingJumpLine = null;
+    this.lastJumpLine = null;
+
+    this.state = {
       searchResults: {
         index: -1,
         count: 0
       },
       selectedToken: null,
-      searchModifiers: {
-        caseSensitive: true,
-        wholeWord: false,
-        regexMatch: false
-      },
+      selectedExpression: null
     };
-  },
 
-  contextTypes: {
-    shortcuts: PropTypes.object
-  },
+    const self: any = this;
+    self.closeConditionalPanel = this.closeConditionalPanel.bind(this);
+    self.onEscape = this.onEscape.bind(this);
+    self.onGutterClick = this.onGutterClick.bind(this);
+    self.onGutterContextMenu = this.onGutterContextMenu.bind(this);
+    self.onScroll = this.onScroll.bind(this);
+    self.onSearchAgain = this.onSearchAgain.bind(this);
+    self.onToggleBreakpoint = this.onToggleBreakpoint.bind(this);
+    self.previewSelectedToken = debounce(
+      this.previewSelectedToken.bind(this),
+      100
+    );
+    self.toggleBreakpoint = this.toggleBreakpoint.bind(this);
+    // eslint-disable-next-line max-len
+    self.toggleBreakpointDisabledStatus = this.toggleBreakpointDisabledStatus.bind(
+      this
+    );
+    self.toggleConditionalPanel = this.toggleConditionalPanel.bind(this);
+    self.updateSearchResults = this.updateSearchResults.bind(this);
+  }
 
   componentWillReceiveProps(nextProps) {
     // This lifecycle method is responsible for updating the editor
@@ -114,113 +126,73 @@ const Editor = React.createClass({
     if (!sourceText) {
       this.showMessage("");
     } else if (!isTextForSource(sourceText)) {
-      this.showMessage(sourceText.get("error") ||
-        L10N.getStr("loadingText"));
+      this.showMessage(sourceText.get("error") || L10N.getStr("loadingText"));
     } else if (this.props.sourceText !== sourceText) {
       this.showSourceText(sourceText, selectedLocation);
     }
 
     this.setDebugLine(nextProps.selectedFrame, selectedLocation);
     resizeBreakpointGutter(this.editor.codeMirror);
-  },
+  }
 
-  componentDidMount() {
-    this.cbPanel = null;
-
-    this.editor = createEditor();
+  setupEditor() {
+    const editor = createEditor();
 
     // disables the default search shortcuts
-    this.editor._initShortcuts = () => {};
+    editor._initShortcuts = () => {};
 
-    this.editor.appendToLocalElement(
-      ReactDOM.findDOMNode(this).querySelector(".editor-mount")
-    );
+    const node = ReactDOM.findDOMNode(this);
+    if (node instanceof HTMLElement) {
+      editor.appendToLocalElement(node.querySelector(".editor-mount"));
+    }
 
-    const codeMirror = this.editor.codeMirror;
+    const { codeMirror } = editor;
     const codeMirrorWrapper = codeMirror.getWrapperElement();
+
+    resizeBreakpointGutter(codeMirror);
+    debugGlobal("cm", codeMirror);
 
     codeMirror.on("gutterClick", this.onGutterClick);
 
     // Set code editor wrapper to be focusable
     codeMirrorWrapper.tabIndex = 0;
-    codeMirrorWrapper
-      .addEventListener("keydown", e => onKeyDown(codeMirror, e));
-
-    const ctx = { ed: this.editor, cm: codeMirror };
-    const { query, searchModifiers } = this.state;
-
-    codeMirrorWrapper
-      .addEventListener("mouseup", e => this.onMouseUp(
-        e, ctx, searchModifiers
-      ));
-
-    codeMirrorWrapper
-      .addEventListener("mouseover", e => this.onMouseOver(
-        e, searchModifiers
-      ));
+    codeMirrorWrapper.addEventListener("keydown", e => this.onKeyDown(e));
+    codeMirrorWrapper.addEventListener("mouseover", e => this.onMouseOver(e));
 
     if (!isFirefox()) {
-      codeMirror.on(
-        "gutterContextMenu",
-        (cm, line, eventName, event) => this.onGutterContextMenu(event)
+      codeMirror.on("gutterContextMenu", (cm, line, eventName, event) =>
+        this.onGutterContextMenu(event)
       );
 
-      codeMirror.on(
-        "contextmenu",
-        (cm, event) => this.openMenu(event, cm)
-      );
+      codeMirror.on("contextmenu", (cm, event) => this.openMenu(event, cm));
     } else {
-      codeMirrorWrapper.addEventListener(
-        "contextmenu",
-        event => this.openMenu(event, codeMirror)
+      codeMirrorWrapper.addEventListener("contextmenu", event =>
+        this.openMenu(event, codeMirror)
       );
     }
 
     codeMirror.on("scroll", this.onScroll);
 
-    const shortcuts = this.context.shortcuts;
+    return editor;
+  }
 
-    shortcuts.on("CmdOrCtrl+B", (key, e) => {
-      e.preventDefault();
-      this.toggleBreakpoint(
-        getCursorLine(codeMirror)
-      );
-    });
+  componentDidMount() {
+    this.cbPanel = null;
+    this.editor = this.setupEditor();
 
-    shortcuts.on("CmdOrCtrl+Shift+B", (key, e) => {
-      e.preventDefault();
-      this.toggleConditionalPanel(
-        getCursorLine(codeMirror)
-      );
-    });
-    // The default Esc command is overridden in the CodeMirror keymap to allow
-    // the Esc keypress event to be catched by the toolbox and trigger the
-    // split console. Restore it here, but preventDefault if and only if there
-    // is a multiselection.
-    shortcuts.on("Esc", (key, e) => {
-      if (codeMirror.listSelections().length > 1) {
-        codeMirror.execCommand("singleSelection");
-        e.preventDefault();
-      }
-    });
+    const { selectedSource, sourceText } = this.props;
+    const { shortcuts } = this.context;
 
     const searchAgainKey = L10N.getStr("sourceSearch.search.again.key");
-    shortcuts.on(`CmdOrCtrl+Shift+${searchAgainKey}`,
-      (_, e) => traverseResults(e, ctx, query, "prev", searchModifiers));
-    shortcuts.on(`CmdOrCtrl+${searchAgainKey}`,
-      (_, e) => traverseResults(e, ctx, query, "next", searchModifiers));
 
-    resizeBreakpointGutter(codeMirror);
-    debugGlobal("cm", codeMirror);
+    shortcuts.on("CmdOrCtrl+B", this.onToggleBreakpoint);
+    shortcuts.on("CmdOrCtrl+Shift+B", this.onToggleBreakpoint);
+    shortcuts.on("Esc", this.onEscape);
+    shortcuts.on(`CmdOrCtrl+Shift+${searchAgainKey}`, this.onSearchAgain);
+    shortcuts.on(`CmdOrCtrl+${searchAgainKey}`, this.onSearchAgain);
 
-    if (this.props.selectedSource) {
-      let sourceId = this.props.selectedSource.get("id");
-      const doc = getDocument(sourceId) || this.editor.createDocument();
-      this.editor.replaceDocument(doc);
-    } else if (this.props.sourceText) {
-      this.setText(this.props.sourceText.get("text"));
-    }
-  },
+    updateDocument(this.editor, selectedSource, sourceText);
+  }
 
   componentWillUnmount() {
     this.editor.destroy();
@@ -232,7 +204,7 @@ const Editor = React.createClass({
     shortcuts.off("CmdOrCtrl+Shift+B");
     shortcuts.off(`CmdOrCtrl+Shift+${searchAgainKey}`);
     shortcuts.off(`CmdOrCtrl+${searchAgainKey}`);
-  },
+  }
 
   componentDidUpdate(prevProps) {
     // This is in `componentDidUpdate` so helper functions can expect
@@ -245,8 +217,7 @@ const Editor = React.createClass({
     // a source where the text hasn't been loaded yet, we will set the
     // line here but not jump until rendering the actual source.
     if (prevProps.selectedLocation !== selectedLocation) {
-      if (selectedLocation &&
-          selectedLocation.line != undefined) {
+      if (selectedLocation && selectedLocation.line != undefined) {
         this.pendingJumpLine = selectedLocation.line;
       } else {
         this.pendingJumpLine = null;
@@ -259,78 +230,164 @@ const Editor = React.createClass({
     if (this.props.sourceText && isTextForSource(this.props.sourceText)) {
       this.highlightLine();
     }
-  },
+  }
+
+  onToggleBreakpoint(key, e) {
+    e.preventDefault();
+    const { codeMirror } = this.editor;
+    const line = getCursorLine(codeMirror);
+
+    if (e.shiftKey) {
+      this.toggleConditionalPanel(line);
+    } else {
+      this.toggleBreakpoint(line);
+    }
+  }
+
+  onKeyDown(e) {
+    const { codeMirror } = this.editor;
+    let { key, target } = e;
+    let codeWrapper = codeMirror.getWrapperElement();
+    let textArea = codeWrapper.querySelector("textArea");
+
+    if (key === "Escape" && target == textArea) {
+      e.stopPropagation();
+      e.preventDefault();
+      codeWrapper.focus();
+    } else if (key === "Enter" && target == codeWrapper) {
+      e.preventDefault();
+      // Focus into editor's text area
+      textArea.focus();
+    }
+  }
+
+  /*
+   * The default Esc command is overridden in the CodeMirror keymap to allow
+   * the Esc keypress event to be catched by the toolbox and trigger the
+   * split console. Restore it here, but preventDefault if and only if there
+   * is a multiselection.
+   */
+  onEscape(key, e) {
+    const { codeMirror } = this.editor;
+    if (codeMirror.listSelections().length > 1) {
+      codeMirror.execCommand("singleSelection");
+      e.preventDefault();
+    }
+  }
 
   onScroll(e) {
-    return this.setState({ selectedToken: null });
-  },
+    return this.setState({ selectedToken: null, selectedExpression: null });
+  }
 
-  onMouseUp(e, ctx, modifiers) {
-    if (e.metaKey) {
-      this.previewSelectedToken(e, ctx, modifiers);
+  onMouseOver(e) {
+    this.previewSelectedToken(e);
+  }
+
+  onSearchAgain(_, e) {
+    const { query, searchModifiers } = this.props;
+    const { editor: { codeMirror } } = this.editor;
+    const ctx = { ed: this.editor, cm: codeMirror };
+
+    if (!searchModifiers) {
+      return;
     }
-  },
 
-  onMouseOver(e, modifiers) {
-    this.previewSelectedToken(e, modifiers);
-  },
+    const direction = e.shiftKey ? "prev" : "next";
+    traverseResults(e, ctx, query, direction, searchModifiers.toJS());
+  }
 
-  previewSelectedToken(e, modifiers) {
-    const { selectedFrame, sourceText } = this.props;
+  async previewSelectedToken(e) {
+    const {
+      selectedFrame,
+      selectedSource,
+      pauseData,
+      sourceText,
+      addExpression
+    } = this.props;
     const { selectedToken } = this.state;
-    const cm = this.editor.codeMirror;
     const token = e.target;
-    const tokenText = token.innerText;
 
-    if (!selectedFrame || !sourceText || !isEnabled("editorPreview")) {
+    if (
+      !selectedFrame ||
+      !sourceText ||
+      !isEnabled("editorPreview") ||
+      !selectedSource ||
+      selectedFrame.location.sourceId !== selectedSource.get("id")
+    ) {
       return;
     }
 
     if (selectedToken) {
       selectedToken.classList.remove("selected-token");
-      this.setState({ selectedToken: null });
+      this.setState({ selectedToken: null, selectedExpression: null });
     }
 
-    const variables = selectedFrame.scope.bindings.variables;
-    const expression = getExpressionFromToken(cm, sourceText, token);
+    const { expression, inScope } = await resolveToken(
+      this.editor.codeMirror,
+      token,
+      sourceText,
+      selectedFrame
+    );
 
-    if (variables.hasOwnProperty(tokenText) || expression ||
-      tokenText == "this" && selectedFrame.this) {
-      this.setState({ selectedToken: token });
+    if (!inScope) {
+      return;
     }
-  },
+
+    const variables = getVisibleVariablesFromScope(pauseData, selectedFrame);
+
+    if (expression) {
+      addExpression(expression.value, { visible: false });
+    }
+
+    const displayedExpression = previewExpression({
+      expression: expression,
+      variables,
+      selectedFrame,
+      tokenText: token.textContent
+    });
+
+    if (displayedExpression) {
+      this.setState({
+        selectedToken: token,
+        selectedExpression: displayedExpression
+      });
+    }
+  }
 
   openMenu(event, codeMirror) {
+    const {
+      selectedSource,
+      selectedLocation,
+      showSource,
+      jumpToMappedLocation,
+      addExpression,
+      toggleBlackBox
+    } = this.props;
+
     return EditorMenu({
       codeMirror,
       event,
-      selectedLocation: this.props.selectedLocation,
-      selectedSource: this.props.selectedSource,
-      showSource: this.props.showSource,
-      onGutterContextMenu: this.onGutterContextMenu,
-      jumpToMappedLocation: this.props.jumpToMappedLocation,
-      addExpression: this.props.addExpression
+      selectedLocation,
+      selectedSource,
+      showSource,
+      jumpToMappedLocation,
+      addExpression,
+      toggleBlackBox,
+      onGutterContextMenu: this.onGutterContextMenu
     });
-  },
+  }
 
-  toggleModifier(searchModifiers) {
-    this.setState({ searchModifiers });
-  },
-
-  updateQuery(query) {
-    if (this.state.query == query) {
-      return;
-    }
-    this.setState({ query });
-  },
-
-  updateSearchResults({ count, index }) {
-    this.setState({ searchResults: { count, index }});
-  },
+  updateSearchResults({ count, index = -1 }: { count: number, index: number }) {
+    this.setState({ searchResults: { count, index } });
+  }
 
   onGutterClick(cm, line, gutter, ev) {
+    const { selectedSource } = this.props;
+
     // ignore right clicks in the gutter
-    if (ev.which === 3) {
+    if (
+      ev.which === 3 || (selectedSource && selectedSource.get("isBlackBoxed"))
+    ) {
       return;
     }
 
@@ -338,37 +395,51 @@ const Editor = React.createClass({
       return this.closeConditionalPanel(line);
     }
 
-    this.toggleBreakpoint(line);
-  },
+    if (gutter !== "CodeMirror-foldgutter") {
+      this.toggleBreakpoint(line);
+    }
+  }
 
   onGutterContextMenu(event) {
+    const { selectedSource } = this.props;
+
+    if (selectedSource && selectedSource.get("isBlackBoxed")) {
+      event.preventDefault();
+      return;
+    }
+
     const line = this.editor.codeMirror.lineAtHeight(event.clientY);
     const bp = breakpointAtLine(this.props.breakpoints, line);
-    GutterMenu({ event, line, bp,
+    GutterMenu({
+      event,
+      line,
+      bp,
       toggleBreakpoint: this.toggleBreakpoint,
       showConditionalPanel: this.toggleConditionalPanel,
       toggleBreakpointDisabledStatus: this.toggleBreakpointDisabledStatus,
       isCbPanelOpen: this.isCbPanelOpen(),
       closeConditionalPanel: this.closeConditionalPanel
     });
-  },
+  }
 
   toggleConditionalPanel(line) {
     if (this.isCbPanelOpen()) {
       return this.closeConditionalPanel();
     }
 
-    const { selectedLocation: { sourceId },
-            setBreakpointCondition, breakpoints } = this.props;
+    const { selectedLocation, setBreakpointCondition, breakpoints } = this
+      .props;
+    const sourceId = selectedLocation ? selectedLocation.sourceId : "";
 
     const bp = breakpointAtLine(breakpoints, line);
     const location = { sourceId, line: line + 1 };
     const condition = bp ? bp.condition : "";
 
-    const setBreakpoint = value => setBreakpointCondition(location, {
-      condition: value,
-      getTextForLine: l => getTextForLine(this.editor.codeMirror, l)
-    });
+    const setBreakpoint = value =>
+      setBreakpointCondition(location, {
+        condition: value,
+        getTextForLine: l => getTextForLine(this.editor.codeMirror, l)
+      });
 
     const panel = renderConditionalPanel({
       condition,
@@ -381,47 +452,62 @@ const Editor = React.createClass({
       noHScroll: true
     });
     this.cbPanel.node.querySelector("input").focus();
-  },
+  }
 
   closeConditionalPanel() {
     this.cbPanel.clear();
     this.cbPanel = null;
-  },
+  }
 
   isCbPanelOpen() {
     return !!this.cbPanel;
-  },
+  }
 
   toggleBreakpoint(line) {
-    const bp = breakpointAtLine(this.props.breakpoints, line);
+    const {
+      selectedSource,
+      selectedLocation,
+      breakpoints,
+      addBreakpoint,
+      removeBreakpoint
+    } = this.props;
+    const bp = breakpointAtLine(breakpoints, line);
 
-    if (bp && bp.loading) {
+    if ((bp && bp.loading) || !selectedLocation || !selectedSource) {
       return;
     }
 
+    const { sourceId } = selectedLocation;
+
     if (bp) {
-      this.props.removeBreakpoint({
-        sourceId: this.props.selectedLocation.sourceId,
+      removeBreakpoint({
+        sourceId: sourceId,
         line: line + 1
       });
     } else {
-      this.props.addBreakpoint(
-        { sourceId: this.props.selectedLocation.sourceId,
-          line: line + 1 },
+      addBreakpoint(
+        {
+          sourceId: sourceId,
+          sourceUrl: selectedSource.get("url"),
+          line: line + 1
+        },
         // Pass in a function to get line text because the breakpoint
         // may slide and it needs to compute the value at the new
         // line.
         { getTextForLine: l => getTextForLine(this.editor.codeMirror, l) }
       );
     }
-  },
+  }
 
   toggleBreakpointDisabledStatus(line) {
     const bp = breakpointAtLine(this.props.breakpoints, line);
+    const { selectedLocation } = this.props;
 
-    if (bp && bp.loading) {
+    if ((bp && bp.loading) || !selectedLocation) {
       return;
     }
+
+    const { sourceId } = selectedLocation;
 
     if (!bp) {
       throw new Error("attempt to disable breakpoint that does not exist");
@@ -429,31 +515,34 @@ const Editor = React.createClass({
 
     if (!bp.disabled) {
       this.props.disableBreakpoint({
-        sourceId: this.props.selectedLocation.sourceId,
+        sourceId: sourceId,
         line: line + 1
       });
     } else {
       this.props.enableBreakpoint({
-        sourceId: this.props.selectedLocation.sourceId,
+        sourceId: sourceId,
         line: line + 1
       });
     }
-  },
+  }
 
   clearDebugLine(selectedFrame) {
     if (selectedFrame) {
       const line = selectedFrame.location.line;
       this.editor.codeMirror.removeLineClass(line - 1, "line", "debug-line");
     }
-  },
+  }
 
   setDebugLine(selectedFrame, selectedLocation) {
-    if (selectedFrame && selectedLocation &&
-        selectedFrame.location.sourceId === selectedLocation.sourceId) {
+    if (
+      selectedFrame &&
+      selectedLocation &&
+      selectedFrame.location.sourceId === selectedLocation.sourceId
+    ) {
       const line = selectedFrame.location.line;
       this.editor.codeMirror.addLineClass(line - 1, "line", "debug-line");
     }
-  },
+  }
 
   // If the location has changed and a specific line is requested,
   // move to that line and flash it.
@@ -475,14 +564,19 @@ const Editor = React.createClass({
 
     // We only want to do the flashing animation if it's not a debug
     // line, which has it's own styling.
-    if (!this.props.selectedFrame ||
-        this.props.selectedFrame.location.line !== line) {
+    // Also, if it the first time the debugger is being loaded, we don't want
+    // to flash the previously saved selected line.
+    if (
+      this.lastJumpLine &&
+      (!this.props.selectedFrame ||
+        this.props.selectedFrame.location.line !== line)
+    ) {
       this.editor.codeMirror.addLineClass(line - 1, "line", "highlight-line");
     }
 
     this.lastJumpLine = line;
     this.pendingJumpLine = null;
-  },
+  }
 
   setText(text) {
     if (!text || !this.editor) {
@@ -490,13 +584,13 @@ const Editor = React.createClass({
     }
 
     this.editor.setText(text);
-  },
+  }
 
   showMessage(msg) {
     this.editor.replaceDocument(this.editor.createDocument());
     this.setText(msg);
     this.editor.setMode({ name: "text" });
-  },
+  }
 
   /**
    * Handle getting the source document or creating a new
@@ -504,6 +598,10 @@ const Editor = React.createClass({
    *
    */
   showSourceText(sourceText, selectedLocation) {
+    if (!selectedLocation) {
+      return;
+    }
+
     let doc = getDocument(selectedLocation.sourceId);
     if (doc) {
       this.editor.replaceDocument(doc);
@@ -516,24 +614,28 @@ const Editor = React.createClass({
 
     this.setText(sourceText.get("text"));
     this.editor.setMode(getMode(sourceText.toJS()));
-  },
+  }
 
   renderBreakpoints() {
-    const { breakpoints, sourceText } = this.props;
+    const { breakpoints, sourceText, selectedSource } = this.props;
     const isLoading = sourceText && sourceText.get("loading");
 
-    if (isLoading) {
+    if (
+      isLoading ||
+      !breakpoints ||
+      (selectedSource && selectedSource.get("isBlackBoxed"))
+    ) {
       return;
     }
 
-    return breakpoints
-      .valueSeq()
-      .map(bp => Breakpoint({
+    return breakpoints.valueSeq().map(bp =>
+      Breakpoint({
         key: makeLocationId(bp.location),
         breakpoint: bp,
         editor: this.editor && this.editor.codeMirror
-      }));
-  },
+      })
+    );
+  }
 
   renderHitCounts() {
     const { hitCount, sourceText } = this.props;
@@ -543,63 +645,68 @@ const Editor = React.createClass({
       return;
     }
 
-    return hitCount
-      .filter(marker => marker.get("count") > 0)
-      .map(marker => HitMarker({
+    return hitCount.filter(marker => marker.get("count") > 0).map(marker =>
+      HitMarker({
         key: marker.get("line"),
         hitData: marker.toJS(),
         editor: this.editor && this.editor.codeMirror
-      }));
-  },
+      })
+    );
+  }
 
-  editorHeight() {
-    const { selectedSource, horizontal } = this.props;
+  getInlineEditorStyles() {
+    const { selectedSource, horizontal, searchOn } = this.props;
 
-    if (!shouldShowFooter(selectedSource, horizontal)) {
-      return "100%";
+    let subtractions = [];
+
+    if (shouldShowFooter(selectedSource, horizontal)) {
+      subtractions.push(cssVars.footerHeight);
     }
 
-    return "";
-  },
+    if (searchOn) {
+      subtractions.push(cssVars.searchbarHeight);
+
+      const secondSearchBarOn =
+        isEnabled("searchModifiers") && isEnabled("symbolSearch");
+
+      if (secondSearchBarOn) {
+        subtractions.push(cssVars.secondSearchbarHeight);
+      }
+    }
+
+    return {
+      height: subtractions.length === 0
+        ? "100%"
+        : `calc(100% - ${subtractions.join(" - ")})`
+    };
+  }
 
   renderPreview() {
-    const { selectedToken } = this.state;
+    const { selectedToken, selectedExpression } = this.state;
     const { selectedFrame, sourceText } = this.props;
 
     if (!this.editor || !sourceText) {
       return null;
     }
 
-    const cm = this.editor.codeMirror;
-
-    if (!selectedToken || !selectedFrame || !isEnabled("editorPreview")) {
+    if (
+      !isEnabled("editorPreview") ||
+      !selectedToken ||
+      !selectedFrame ||
+      !selectedExpression
+    ) {
       return;
     }
 
-    const token = selectedToken.innerText;
-    const variables = selectedFrame.scope.bindings.variables;
-    const previewExpression = getExpressionFromToken(
-      cm,
-      sourceText,
-      selectedToken
-    );
-
-    if (!variables.hasOwnProperty(token) && !previewExpression &&
-      token != "this") {
-      return;
-    }
-
+    const token = selectedToken.textContent;
     selectedToken.classList.add("selected-token");
-    let value = "";
 
-    if (variables.hasOwnProperty(token)) {
-      value = variables[token].value;
-    } else if (token == "this" && selectedFrame.this) {
-      value = selectedFrame.this;
-    }
+    const value = getExpressionValue(selectedExpression, {
+      getExpression: this.props.getExpression
+    });
 
-    if (previewExpression && isEnabled("previewMemberExpressions")) {
-      value = previewExpression.value;
+    if (!value) {
+      return;
     }
 
     return Preview({
@@ -609,65 +716,105 @@ const Editor = React.createClass({
       onClose: () => {
         selectedToken.classList.remove("selected-token");
         this.setState({
-          selectedToken: null
+          selectedToken: null,
+          selectedExpression: null
         });
       }
     });
-  },
+  }
 
   render() {
     const {
-      sourceText, selectSource, selectedSource, coverageOn, horizontal
+      sourceText,
+      selectSource,
+      selectedSource,
+      coverageOn,
+      horizontal
     } = this.props;
 
     const { searchResults } = this.state;
 
-    return (
-      dom.div(
-        {
-          className: classnames(
-            "editor-wrapper",
-            { "coverage-on": coverageOn }
-          )
-        },
-        SearchBar({
-          editor: this.editor,
-          selectSource,
-          selectedSource,
-          sourceText,
-          searchResults,
-          modifiers: this.state.searchModifiers,
-          toggleModifier: this.toggleModifier,
-          query: this.state.query,
-          updateQuery: this.updateQuery,
-          updateSearchResults: this.updateSearchResults
-        }),
-        dom.div({
-          className: "editor-mount devtools-monospace",
-          style: { height: this.editorHeight() }
-        }),
-        this.renderBreakpoints(),
-        this.renderHitCounts(),
-        Footer({ editor: this.editor, horizontal }),
-        this.renderPreview()
-      )
+    return dom.div(
+      {
+        className: classnames("editor-wrapper", { "coverage-on": coverageOn })
+      },
+      SearchBar({
+        editor: this.editor,
+        selectSource,
+        selectedSource,
+        sourceText,
+        searchResults,
+        updateSearchResults: this.updateSearchResults
+      }),
+      dom.div({
+        className: "editor-mount devtools-monospace",
+        style: this.getInlineEditorStyles()
+      }),
+      this.renderBreakpoints(),
+      this.renderHitCounts(),
+      Footer({ editor: this.editor, horizontal }),
+      this.renderPreview()
     );
   }
-});
+}
 
-module.exports = connect(state => {
-  const selectedLocation: ?Location = getSelectedLocation(state);
-  const sourceId: ?string = selectedLocation && selectedLocation.sourceId;
-  const selectedSource = getSelectedSource(state);
+Editor.displayName = "Editor";
 
-  return {
-    selectedLocation,
-    selectedSource,
-    sourceText: getSourceText(state, sourceId),
-    loadedObjects: getLoadedObjects(state),
-    breakpoints: getBreakpointsForSource(state, sourceId),
-    hitCount: getHitCountForSource(state, sourceId),
-    selectedFrame: getSelectedFrame(state),
-    coverageOn: getCoverageEnabled(state)
-  };
-}, dispatch => bindActionCreators(actions, dispatch))(Editor);
+Editor.propTypes = {
+  breakpoints: ImPropTypes.map.isRequired,
+  hitCount: PropTypes.object,
+  selectedLocation: PropTypes.object,
+  selectedSource: ImPropTypes.map,
+  sourceText: ImPropTypes.map,
+  searchOn: PropTypes.bool,
+  addBreakpoint: PropTypes.func.isRequired,
+  disableBreakpoint: PropTypes.func.isRequired,
+  enableBreakpoint: PropTypes.func.isRequired,
+  removeBreakpoint: PropTypes.func.isRequired,
+  setBreakpointCondition: PropTypes.func.isRequired,
+  selectSource: PropTypes.func,
+  jumpToMappedLocation: PropTypes.func,
+  toggleBlackBox: PropTypes.func,
+  showSource: PropTypes.func,
+  coverageOn: PropTypes.bool,
+  pauseData: ImPropTypes.map,
+  selectedFrame: PropTypes.object,
+  getExpression: PropTypes.func.isRequired,
+  addExpression: PropTypes.func.isRequired,
+  horizontal: PropTypes.bool,
+  query: PropTypes.string.isRequired,
+  searchModifiers: ImPropTypes.recordOf({
+    caseSensitive: PropTypes.bool.isRequired,
+    regexMatch: PropTypes.bool.isRequired,
+    wholeWord: PropTypes.bool.isRequired
+  }).isRequired
+};
+
+Editor.contextTypes = {
+  shortcuts: PropTypes.object
+};
+
+export default connect(
+  state => {
+    const selectedLocation = getSelectedLocation(state);
+    const sourceId = selectedLocation && selectedLocation.sourceId;
+    const selectedSource = getSelectedSource(state);
+
+    return {
+      selectedLocation,
+      selectedSource,
+      searchOn: getFileSearchState(state),
+      sourceText: getSourceText(state, sourceId),
+      loadedObjects: getLoadedObjects(state),
+      breakpoints: getBreakpointsForSource(state, sourceId || ""),
+      hitCount: getHitCountForSource(state, sourceId),
+      selectedFrame: getSelectedFrame(state),
+      getExpression: getExpression.bind(null, state),
+      pauseData: getPause(state),
+      coverageOn: getCoverageEnabled(state),
+      query: getFileSearchQueryState(state),
+      searchModifiers: getFileSearchModifierState(state)
+    };
+  },
+  dispatch => bindActionCreators(actions, dispatch)
+)(Editor);

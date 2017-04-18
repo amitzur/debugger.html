@@ -6,7 +6,7 @@ const {
   clickElement,
   findElement,
   reload
-} = require("../utils")
+} = require("../utils");
 
 function clickStepOver(dbg) {
   clickElement(dbg, "stepOver");
@@ -60,4 +60,4 @@ module.exports = async function(ctx) {
   // step out
   await clickStepOut(dbg);
   assertPausedLocation(dbg, ctx, "debugger-statements.html", 20);
-}
+};

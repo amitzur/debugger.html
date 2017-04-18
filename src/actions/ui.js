@@ -1,25 +1,56 @@
 // @flow
-const constants = require("../constants");
-const { getSource, getFileSearchState } = require("../selectors");
+import constants from "../constants";
+import {
+  getSource,
+  getProjectSearchState,
+  getFileSearchState
+} from "../selectors";
 import type { ThunkArgs } from "./types";
 
-function toggleFileSearch() {
+export function toggleProjectSearch(toggleValue?: boolean) {
   return ({ dispatch, getState }: ThunkArgs) => {
-    dispatch({
-      type: constants.SET_FILE_SEARCH,
-      searchOn: !getFileSearchState(getState())
-    });
+    if (toggleValue != null) {
+      dispatch({
+        type: constants.TOGGLE_PROJECT_SEARCH,
+        value: toggleValue
+      });
+    } else {
+      dispatch({
+        type: constants.TOGGLE_PROJECT_SEARCH,
+        value: !getProjectSearchState(getState())
+      });
+    }
   };
 }
 
-function closeFileSearch() {
+export function toggleFileSearch(toggleValue?: boolean) {
+  return ({ dispatch, getState }: ThunkArgs) => {
+    if (toggleValue != null) {
+      dispatch({
+        type: constants.TOGGLE_FILE_SEARCH,
+        value: toggleValue
+      });
+    } else {
+      dispatch({
+        type: constants.TOGGLE_FILE_SEARCH,
+        value: !getFileSearchState(getState())
+      });
+    }
+  };
+}
+
+export function setFileSearchQuery(query: string) {
   return {
-    type: constants.SET_FILE_SEARCH,
-    searchOn: false
+    type: constants.UPDATE_FILE_SEARCH_QUERY,
+    query
   };
 }
 
-function showSource(sourceId: string) {
+export function toggleFileSearchModifier(modifier: string) {
+  return { type: constants.TOGGLE_FILE_SEARCH_MODIFIER, modifier };
+}
+
+export function showSource(sourceId: string) {
   return ({ dispatch, getState }: ThunkArgs) => {
     const source = getSource(getState(), sourceId);
     dispatch({
@@ -29,17 +60,10 @@ function showSource(sourceId: string) {
   };
 }
 
-function togglePaneCollapse(position: string, paneCollapsed: boolean) {
+export function togglePaneCollapse(position: string, paneCollapsed: boolean) {
   return {
     type: constants.TOGGLE_PANE,
     position,
     paneCollapsed
   };
 }
-
-module.exports = {
-  toggleFileSearch,
-  closeFileSearch,
-  showSource,
-  togglePaneCollapse
-};

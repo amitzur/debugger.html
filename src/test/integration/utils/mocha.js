@@ -1,13 +1,13 @@
 const mapValues = require("lodash/mapValues");
 const injectDebuggee = require("./debuggee");
 const {
-  waitForElement,
+  waitUntil,
   waitForSources,
   waitForTargetEvent,
   waitForPaused
 } = require("./wait");
 
-const {type, pressKey} = require("./type")
+const { type, pressKey } = require("./type");
 
 function info(msg) {
   console.log(`info: ${msg}\n`);
@@ -17,6 +17,10 @@ async function waitForTime(time) {
   return new Promise(function(resolve, reject) {
     setTimeout(resolve, time);
   });
+}
+
+async function waitForElement(win, selector) {
+  return waitUntil(() => win.document.querySelector(selector));
 }
 
 async function debuggee(callback) {
@@ -37,19 +41,19 @@ async function debuggee(callback) {
 }
 
 async function invokeInTab(dbg, fnc) {
-  info(`invoking function ${fnc}()`)
+  info(`invoking function ${fnc}()`);
   return dbg.client.debuggeeCommand(`${fnc}()`);
 }
 
 async function evalInTab(dbg, script) {
-  info(`evaling script ${script}`)
+  info(`evaling script ${script}`);
   return dbg.client.debuggeeCommand(script);
 }
 
 function selectMenuItem(dbg, index) {
-  const doc =  dbg.win.document;
+  const doc = dbg.win.document;
 
-  const popup = doc.querySelector("menupopup[menu-api=\"true\"]");
+  const popup = doc.querySelector('menupopup[menu-api="true"]');
   const item = popup.querySelector(`menuitem:nth-child(${index})`);
   item.click();
 }
@@ -57,31 +61,29 @@ function selectMenuItem(dbg, index) {
 function createDebuggerContext(iframe) {
   const win = iframe.contentWindow.window;
 
-  const globals = win.getGlobalsForTesting();
-  const { debuggerStore: store, selectors } = globals;
+  const {
+    store,
+    selectors,
+    actions,
+    client,
+    connection: { tabConnection: { threadClient, tabTarget } }
+  } = win.getGlobalsForTesting();
 
   return {
-    actions: globals.actions,
-    selectors: globals.selectors,
-    getState: store.getState,
+    actions,
+    selectors,
     store,
-    client: win.client,
-    threadClient: globals.threadClient,
-    tabTarget: globals.target,
-    win: win,
-    launchpadStore: globals.launchpadStore
-  }
+    client,
+    threadClient,
+    tabTarget,
+    win,
+    getState: store.getState
+  };
 }
 
 async function waitForLoad(iframe) {
   return new Promise(resolve => {
     iframe.onload = resolve;
-  });
-}
-
-async function waitForConnection(win) {
-  return new Promise(resolve => {
-    win.addEventListener("connected", resolve);
   });
 }
 
@@ -96,23 +98,26 @@ async function createIframe() {
   container.appendChild(iframe);
   await loaded;
 
-  const dbg = createDebuggerContext(iframe);
-  await waitForElement(dbg, ".tab")
+  await waitForElement(iframe.contentWindow.window, ".tab");
   return iframe;
 }
 
-async function navigateToTab(dbg) {
-  const tabs = dbg.launchpadStore.getState().tabs.get("tabs");
-  const tabId = tabs.find(t => {
-    return t.get("clientType") == "firefox";
-  }).get("id");
+async function navigateToTab(iframe) {
+  const win = iframe.contentWindow.window;
+  const tabs = win.launchpadStore.getState().tabs.get("tabs");
+  const tabId = tabs
+    .find(t => {
+      return t.get("clientType") == "firefox";
+    })
+    .get("id");
 
-  dbg.win.location = `/?firefox-tab=${tabId}`;
-  return waitForElement(dbg, ".debugger");
+  await waitForElement(win, ".tab");
+  win.location = `/?firefox-tab=${tabId}`;
+  await waitForElement(win, ".debugger");
 }
 
 async function navigate(dbg, url) {
-  dbg.win.client.navigate(`${url}`);
+  dbg.client.navigate(`${url}`);
 
   return Promise.race([
     waitForPaused(dbg),
@@ -122,18 +127,14 @@ async function navigate(dbg, url) {
 
 async function initDebugger(url, ...sources) {
   const iframe = await createIframe();
-  const dbg = createDebuggerContext(iframe);
-
-  await navigateToTab(dbg);
-  dbg = createDebuggerContext(iframe);
-
-  const connected = waitForConnection(dbg.win);
+  await navigateToTab(iframe);
+  let dbg = createDebuggerContext(iframe);
   await navigate(
     dbg,
-    `http://localhost:8000/integration/examples/${url}`
+    "http://localhost:8000/integration/examples/doc-minified.html"
   );
+  await navigate(dbg, `http://localhost:8000/integration/examples/${url}`);
 
-  await connected
   dbg = createDebuggerContext(iframe);
   await waitForSources(dbg, ...sources);
   return dbg;
@@ -146,8 +147,7 @@ function countSources(dbg) {
   return sources.size - 1;
 }
 
-function setupTestRunner() {
-}
+function setupTestRunner() {}
 
 module.exports = {
   invokeInTab,
@@ -160,4 +160,4 @@ module.exports = {
   setupTestRunner,
   info,
   environment: "mocha"
-}
+};

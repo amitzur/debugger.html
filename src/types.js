@@ -7,20 +7,26 @@ export type SearchModifiers = {
 };
 
 export type Expression = {
-   value: Object,
-   input: string
- };
+  value: Object,
+  input: string,
+  visible: boolean
+};
 
-export type Mode = String | {
-   name: string,
-   typescript?: boolean,
-   base?: {
-     name: string,
-     typescript: boolean
-   }
- }
+export type TokenResolution = {
+  expression?: Object | null,
+  inScope: boolean
+};
 
-export type AlignOpts = "top" | "center" | "bottom";
+export type Mode =
+  | String
+  | {
+      name: string,
+      typescript?: boolean,
+      base?: {
+        name: string,
+        typescript: boolean
+      }
+    };
 
 export type {
   Breakpoint,
@@ -32,4 +38,4 @@ export type {
   SourceText,
   Pause,
   Why
-} from "devtools-client-adapters/src/types";
+} from "debugger-html";

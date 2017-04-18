@@ -29,4 +29,4 @@ module.exports = async function(ctx) {
   // Make sure that only the single generated source exists. The
   // sourcemap failed to download.
   is(countSources(dbg), 1, "Only 1 source exists");
-}
+};

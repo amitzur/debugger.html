@@ -1,55 +1,54 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
+
+import { Component, DOM as dom, PropTypes, createFactory } from "react";
+import { filter } from "fuzzaldrin-plus";
+import classnames from "classnames";
+import { scrollList } from "../../utils/result-list";
+import Svg from "./Svg";
+
 const { findDOMNode } = require("react-dom");
-const { filter } = require("fuzzaldrin-plus");
-const classnames = require("classnames");
-const { scrollList } = require("../../utils/result-list");
-const Svg = require("./Svg");
-const SearchInput = createFactory(require("./SearchInput"));
-const ResultList = createFactory(require("./ResultList"));
+const SearchInput = createFactory(require("./SearchInput").default);
+const ResultList = createFactory(require("./ResultList").default);
 
-require("./Autocomplete.css");
+import "./Autocomplete.css";
+type State = {
+  inputValue: string,
+  selectedIndex: number,
+  focused: boolean
+};
 
-const Autocomplete = React.createClass({
-  propTypes: {
-    selectItem: PropTypes.func.isRequired,
-    onSelectedItem: PropTypes.func,
-    items: PropTypes.array,
-    close: PropTypes.func.isRequired,
-    inputValue: PropTypes.string.isRequired,
-    placeholder: PropTypes.string,
-    size: PropTypes.string
-  },
+export default class Autocomplete extends Component {
+  state: State;
+  static defaultProps: Object;
 
-  displayName: "Autocomplete",
+  constructor(props: any) {
+    super(props);
 
-  getInitialState() {
-    return {
-      inputValue: this.props.inputValue,
+    (this: any).onKeyDown = this.onKeyDown.bind(this);
+    this.state = {
+      inputValue: props.inputValue,
       selectedIndex: 0,
       focused: false
     };
-  },
-
-  getDefaultProps() {
-    return {
-      size: ""
-    };
-  },
+  }
 
   componentDidMount() {
     const endOfInput = this.state.inputValue.length;
-    const searchInput = findDOMNode(this).querySelector("input");
-    searchInput.focus();
-    searchInput.setSelectionRange(endOfInput, endOfInput);
-  },
+    const node = findDOMNode(this);
+    if (node instanceof HTMLElement) {
+      const searchInput = node.querySelector("input");
+      if (searchInput instanceof HTMLInputElement) {
+        searchInput.focus();
+        searchInput.setSelectionRange(endOfInput, endOfInput);
+      }
+    }
+  }
 
   componentDidUpdate() {
     if (this.refs.resultList && this.refs.resultList.refs) {
       scrollList(this.refs.resultList.refs, this.state.selectedIndex);
     }
-  },
+  }
 
   getSearchResults() {
     let inputValue = this.state.inputValue;
@@ -60,7 +59,7 @@ const Autocomplete = React.createClass({
     return filter(this.props.items, this.state.inputValue, {
       key: "value"
     });
-  },
+  }
 
   onKeyDown(e: SyntheticKeyboardEvent) {
     const searchResults = this.getSearchResults(),
@@ -94,9 +93,9 @@ const Autocomplete = React.createClass({
       this.props.close(this.state.inputValue);
       e.preventDefault();
     }
-  },
+  }
 
-  renderResults(results) {
+  renderResults(results: Object[]) {
     const { size } = this.props;
 
     if (results.length) {
@@ -109,12 +108,13 @@ const Autocomplete = React.createClass({
         ref: "resultList"
       });
     } else if (this.state.inputValue && !results.length) {
-      return dom.div({ className: "no-result-msg" },
+      return dom.div(
+        { className: "no-result-msg" },
         Svg("sad-face"),
         L10N.getFormatStr("sourceSearch.noResults", this.state.inputValue)
       );
     }
-  },
+  }
 
   render() {
     const { focused } = this.state;
@@ -132,17 +132,33 @@ const Autocomplete = React.createClass({
         placeholder: this.props.placeholder,
         size,
         summaryMsg,
-        onChange: e => this.setState({
-          inputValue: e.target.value,
-          selectedIndex: 0
-        }),
+        onChange: e =>
+          this.setState({
+            inputValue: e.target.value,
+            selectedIndex: 0
+          }),
         onFocus: () => this.setState({ focused: true }),
         onBlur: () => this.setState({ focused: false }),
         onKeyDown: this.onKeyDown,
         handleClose: this.props.close
       }),
-      this.renderResults(searchResults));
+      this.renderResults(searchResults)
+    );
   }
-});
+}
 
-module.exports = Autocomplete;
+Autocomplete.propTypes = {
+  selectItem: PropTypes.func.isRequired,
+  onSelectedItem: PropTypes.func,
+  items: PropTypes.array,
+  close: PropTypes.func.isRequired,
+  inputValue: PropTypes.string.isRequired,
+  placeholder: PropTypes.string,
+  size: PropTypes.string
+};
+
+Autocomplete.displayName = "Autocomplete";
+
+Autocomplete.defaultProps = {
+  size: ""
+};

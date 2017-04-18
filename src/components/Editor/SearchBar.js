@@ -1,28 +1,40 @@
 // @flow
 
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
+import { DOM as dom, PropTypes, createFactory, Component } from "react";
+import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
 const { findDOMNode } = require("react-dom");
-const { isEnabled } = require("devtools-config");
-const { filter } = require("fuzzaldrin-plus");
-const Svg = require("../shared/Svg");
-const {
+import { isEnabled } from "devtools-config";
+import { filter } from "fuzzaldrin-plus";
+import Svg from "../shared/Svg";
+import actions from "../../actions";
+import {
+  getFileSearchState,
+  getFileSearchQueryState,
+  getFileSearchModifierState
+} from "../../selectors";
+
+import {
   find,
   findNext,
   findPrev,
   removeOverlay,
   countMatches,
   clearIndex
-} = require("../../utils/editor");
-const { getSymbols } = require("../../utils/parser");
-const { scrollList } = require("../../utils/result-list");
-const classnames = require("classnames");
-const debounce = require("lodash/debounce");
-const SearchInput = createFactory(require("../shared/SearchInput"));
-const ResultList = createFactory(require("../shared/ResultList"));
-const ImPropTypes = require("react-immutable-proptypes");
+} from "../../utils/editor";
 
-import type { FormattedSymbolDeclaration } from "../../utils/parser";
+import { getSymbols } from "../../utils/parser";
+import { scrollList } from "../../utils/result-list";
+import classnames from "classnames";
+import debounce from "lodash/debounce";
+const SearchInput = createFactory(require("../shared/SearchInput").default);
+const ResultList = createFactory(require("../shared/ResultList").default);
+import ImPropTypes from "react-immutable-proptypes";
+
+import type {
+  FormattedSymbolDeclaration,
+  SymbolDeclaration
+} from "../../utils/parser/utils";
 
 function getShortcuts() {
   const searchAgainKey = L10N.getStr("sourceSearch.search.again.key");
@@ -39,30 +51,25 @@ function getShortcuts() {
 type ToggleSymbolSearchOpts = {
   toggle: boolean,
   searchType: string
-}
+};
 
-require("./SearchBar.css");
+type SearchBarState = {
+  symbolSearchEnabled: boolean,
+  selectedSymbolType: string,
+  symbolSearchResults: Array<any>,
+  selectedResultIndex: number,
+  count: number,
+  index: number
+};
 
-const SearchBar = React.createClass({
+import "./SearchBar.css";
 
-  propTypes: {
-    editor: PropTypes.object,
-    sourceText: ImPropTypes.map,
-    selectSource: PropTypes.func.isRequired,
-    selectedSource: ImPropTypes.map,
-    searchResults: PropTypes.object.isRequired,
-    modifiers: PropTypes.object.isRequired,
-    toggleModifier: PropTypes.func.isRequired,
-    query: PropTypes.string.isRequired,
-    updateQuery: PropTypes.func.isRequired,
-    updateSearchResults: PropTypes.func.isRequired
-  },
+class SearchBar extends Component {
+  state: SearchBarState;
 
-  displayName: "SearchBar",
-
-  getInitialState() {
-    return {
-      enabled: false,
+  constructor(props) {
+    super(props);
+    this.state = {
       symbolSearchEnabled: false,
       selectedSymbolType: "functions",
       symbolSearchResults: [],
@@ -70,17 +77,42 @@ const SearchBar = React.createClass({
       count: 0,
       index: -1
     };
-  },
 
-  contextTypes: {
-    shortcuts: PropTypes.object
-  },
+    const self: any = this;
+    self.onEscape = this.onEscape.bind(this);
+    self.clearSearch = this.clearSearch.bind(this);
+    self.closeSearch = this.closeSearch.bind(this);
+    self.toggleSearch = this.toggleSearch.bind(this);
+    self.toggleSymbolSearch = this.toggleSymbolSearch.bind(this);
+    self.setSearchValue = this.setSearchValue.bind(this);
+    self.selectSearchInput = this.selectSearchInput.bind(this);
+    self.searchInput = this.searchInput.bind(this);
+    self.updateSymbolSearchResults = this.updateSymbolSearchResults.bind(this);
+    self.doSearch = this.doSearch.bind(this);
+    self.searchContents = this.searchContents.bind(this);
+    self.traverseSymbolResults = this.traverseSymbolResults.bind(this);
+    self.traverseCodeResults = this.traverseCodeResults.bind(this);
+    self.traverseResults = this.traverseResults.bind(this);
+    self.selectResultItem = this.selectResultItem.bind(this);
+    self.onSelectResultItem = this.onSelectResultItem.bind(this);
+    self.onChange = this.onChange.bind(this);
+    self.onKeyUp = this.onKeyUp.bind(this);
+    self.onKeyDown = this.onKeyDown.bind(this);
+    self.buildSummaryMsg = this.buildSummaryMsg.bind(this);
+    self.buildPlaceHolder = this.buildPlaceHolder.bind(this);
+    self.renderSearchModifiers = this.renderSearchModifiers.bind(this);
+    self.renderSearchTypeToggle = this.renderSearchTypeToggle.bind(this);
+    self.renderBottomBar = this.renderBottomBar.bind(this);
+    self.renderResults = this.renderResults.bind(this);
+  }
 
   componentWillUnmount() {
     const shortcuts = this.context.shortcuts;
     const {
-      searchShortcut, searchAgainShortcut,
-      shiftSearchAgainShortcut, symbolSearchShortcut
+      searchShortcut,
+      searchAgainShortcut,
+      shiftSearchAgainShortcut,
+      symbolSearchShortcut
     } = getShortcuts();
 
     shortcuts.off(searchShortcut);
@@ -88,44 +120,47 @@ const SearchBar = React.createClass({
     shortcuts.off(searchAgainShortcut);
     shortcuts.off(shiftSearchAgainShortcut);
     shortcuts.off(symbolSearchShortcut);
-  },
+  }
 
   componentDidMount() {
+    // overwrite searchContents with a debounced version to reduce the
+    // frequency of queries which improves perf on large files
+    // $FlowIgnore
+    this.searchContents = debounce(this.searchContents, 100);
+
     const shortcuts = this.context.shortcuts;
     const {
-      searchShortcut, searchAgainShortcut,
-      shiftSearchAgainShortcut, symbolSearchShortcut
+      searchShortcut,
+      searchAgainShortcut,
+      shiftSearchAgainShortcut,
+      symbolSearchShortcut
     } = getShortcuts();
 
     shortcuts.on(searchShortcut, (_, e) => this.toggleSearch(e));
     shortcuts.on("Escape", (_, e) => this.onEscape(e));
 
-    shortcuts.on(
-      shiftSearchAgainShortcut,
-      (_, e) => this.traverseResults(e, true)
+    shortcuts.on(shiftSearchAgainShortcut, (_, e) =>
+      this.traverseResults(e, true)
     );
 
-    shortcuts.on(
-      searchAgainShortcut,
-      (_, e) => this.traverseResults(e, false)
-    );
+    shortcuts.on(searchAgainShortcut, (_, e) => this.traverseResults(e, false));
 
     if (isEnabled("symbolSearch")) {
-      shortcuts.on(
-        symbolSearchShortcut,
-        (_, e) => this.toggleSymbolSearch(e, {
+      shortcuts.on(symbolSearchShortcut, (_, e) =>
+        this.toggleSymbolSearch(e, {
           toggle: false,
           searchType: "functions"
         })
       );
     }
-  },
+  }
 
-  componentDidUpdate(prevProps: any) {
+  componentDidUpdate(prevProps: any, prevState: any) {
     const { sourceText, selectedSource, query, modifiers } = this.props;
+    const searchInput = this.searchInput();
 
-    if (this.searchInput()) {
-      this.searchInput().focus();
+    if (searchInput) {
+      searchInput.focus();
     }
 
     if (this.refs.resultList && this.refs.resultList.refs) {
@@ -133,64 +168,74 @@ const SearchBar = React.createClass({
     }
 
     const hasLoaded = sourceText && !sourceText.get("loading");
-    const wasLoading = prevProps.sourceText
-                        && prevProps.sourceText.get("loading");
+    const wasLoading =
+      prevProps.sourceText && prevProps.sourceText.get("loading");
 
     const doneLoading = wasLoading && hasLoaded;
-    const changedFiles = selectedSource != prevProps.selectedSource
-                          && hasLoaded;
-    const modifiersUpdated = modifiers != prevProps.modifiers;
+    const changedFiles =
+      selectedSource != prevProps.selectedSource && hasLoaded;
+    const modifiersUpdated =
+      modifiers && !modifiers.equals(prevProps.modifiers);
 
-    const isOpen = this.state.enabled || this.state.symbolSearchEnabled;
+    const isOpen = this.props.searchOn || this.state.symbolSearchEnabled;
+    const { selectedSymbolType, symbolSearchEnabled } = this.state;
+    const changedSearchType =
+      selectedSymbolType != prevState.selectedSymbolType ||
+      symbolSearchEnabled != prevState.symbolSearchEnabled;
 
-    if (isOpen && (doneLoading || changedFiles || modifiersUpdated)) {
+    if (
+      isOpen &&
+      (doneLoading || changedFiles || modifiersUpdated || changedSearchType)
+    ) {
       this.doSearch(query);
     }
-  },
+  }
 
   onEscape(e: SyntheticKeyboardEvent) {
     this.closeSearch(e);
-  },
+  }
 
   clearSearch() {
     const { editor: ed, query, modifiers } = this.props;
-    if (ed) {
+    if (ed && modifiers) {
       const ctx = { ed, cm: ed.codeMirror };
-      removeOverlay(ctx, query, modifiers);
+      removeOverlay(ctx, query, modifiers.toJS());
     }
-  },
+  }
 
   closeSearch(e: SyntheticEvent) {
     const { editor: ed } = this.props;
 
-    if (this.state.enabled && ed) {
+    if (this.props.searchOn && ed) {
       this.clearSearch();
+      this.props.toggleFileSearch(false);
       this.setState({
-        enabled: false,
         symbolSearchEnabled: false,
         selectedSymbolType: "functions"
       });
       e.stopPropagation();
       e.preventDefault();
     }
-  },
+  }
 
   toggleSearch(e: SyntheticKeyboardEvent) {
     e.stopPropagation();
     e.preventDefault();
     const { editor } = this.props;
 
-    if (!this.state.enabled) {
-      this.setState({ enabled: true });
+    if (!this.props.searchOn) {
+      this.props.toggleFileSearch();
     }
 
     if (this.state.symbolSearchEnabled) {
       this.clearSearch();
       this.setState({
-        symbolSearchEnabled: false, selectedSymbolType: "functions" });
+        symbolSearchEnabled: false,
+        selectedSymbolType: "functions"
+      });
     }
 
-    if (this.state.enabled && editor) {
+    if (this.props.searchOn && editor) {
       const selection = editor.codeMirror.getSelection();
       this.setSearchValue(selection);
       if (selection !== "") {
@@ -198,10 +243,12 @@ const SearchBar = React.createClass({
       }
       this.selectSearchInput();
     }
-  },
+  }
 
-  toggleSymbolSearch(e: SyntheticKeyboardEvent,
-    { toggle, searchType }: ToggleSymbolSearchOpts = {}) {
+  toggleSymbolSearch(
+    e: SyntheticKeyboardEvent,
+    { toggle, searchType }: ToggleSymbolSearchOpts = {}
+  ) {
     const { sourceText } = this.props;
 
     if (e) {
@@ -213,8 +260,8 @@ const SearchBar = React.createClass({
       return;
     }
 
-    if (!this.state.enabled) {
-      this.setState({ enabled: true });
+    if (!this.props.searchOn) {
+      this.props.toggleFileSearch();
     }
 
     if (this.state.symbolSearchEnabled) {
@@ -229,98 +276,125 @@ const SearchBar = React.createClass({
     if (this.props.selectedSource) {
       this.clearSearch();
       this.setState({
-        symbolSearchEnabled: true, selectedSymbolType: searchType });
+        symbolSearchEnabled: true,
+        selectedSymbolType: searchType
+      });
     }
-  },
+  }
 
   setSearchValue(value: string) {
-    if (value == "") {
+    const searchInput = this.searchInput();
+    if (value == "" || !searchInput) {
       return;
     }
 
-    this.searchInput().value = value;
-  },
+    searchInput.value = value;
+  }
 
   selectSearchInput() {
-    const node = this.searchInput();
-    if (node) {
-      node.setSelectionRange(0, node.value.length);
+    const searchInput = this.searchInput();
+    if (searchInput) {
+      searchInput.setSelectionRange(0, searchInput.value.length);
     }
-  },
+  }
 
-  searchInput() {
-    return findDOMNode(this).querySelector("input");
-  },
+  searchInput(): ?HTMLInputElement {
+    const node = findDOMNode(this);
+    if (node instanceof HTMLElement) {
+      const input = node.querySelector("input");
+      if (input instanceof HTMLInputElement) {
+        return input;
+      }
+    }
+    return null;
+  }
 
-  updateSymbolSearchResults(query: string) {
-    const {
-      sourceText,
-      updateSearchResults
-    } = this.props;
+  async updateSymbolSearchResults(query: string) {
+    const { sourceText, updateSearchResults } = this.props;
     const { selectedSymbolType } = this.state;
 
     if (query == "" || !sourceText) {
       return;
     }
 
-    const symbolDeclarations = getSymbols(
-      sourceText.toJS())[selectedSymbolType];
-
+    const symbolDeclarations = await getSymbols(sourceText.toJS());
     const symbolSearchResults = filter(
-      symbolDeclarations,
+      symbolDeclarations[selectedSymbolType],
       query,
       { key: "value" }
     );
 
     updateSearchResults({ count: symbolSearchResults.length });
     return this.setState({ symbolSearchResults });
-  },
+  }
 
-  doSearch(query: string) {
-    const {
-      sourceText,
-      modifiers,
-      updateQuery,
-      editor: ed,
-      searchResults: { index }
-    } = this.props;
+  async doSearch(query: string) {
+    const { sourceText, setFileSearchQuery, editor: ed } = this.props;
     if (!sourceText || !sourceText.get("text")) {
       return;
     }
 
-    updateQuery(query);
+    setFileSearchQuery(query);
 
     if (this.state.symbolSearchEnabled) {
-      return this.updateSymbolSearchResults(query);
+      return await this.updateSymbolSearchResults(query);
+    } else if (ed) {
+      this.searchContents(query);
     }
+  }
 
-    if (!ed) {
+  searchContents(query: string) {
+    const { sourceText, modifiers, editor: ed, searchResults: { index } } = this
+      .props;
+
+    if (!ed || !sourceText || !sourceText.get("text") || !modifiers) {
       return;
     }
 
     const ctx = { ed, cm: ed.codeMirror };
 
-    const newCount = countMatches(query, sourceText.get("text"), modifiers);
+    const newCount = countMatches(
+      query,
+      sourceText.get("text"),
+      modifiers.toJS()
+    );
 
     if (index == -1) {
-      clearIndex(ctx, query, modifiers);
+      clearIndex(ctx, query, modifiers.toJS());
     }
 
-    const newIndex = find(ctx, query, true, modifiers);
+    const newIndex = find(ctx, query, true, modifiers.toJS());
+    this.props.updateSearchResults({
+      count: newCount,
+      index: newIndex
+    });
+  }
 
-    debounce(
-      () => this.props.updateSearchResults({
-        count: newCount,
-        index: newIndex
-      }),
-      100
-    )();
-  },
+  traverseSymbolResults(rev: boolean) {
+    const { symbolSearchResults, selectedResultIndex } = this.state;
+    const searchResults = symbolSearchResults;
+    const resultCount = searchResults.length;
 
-  traverseResults(e: SyntheticEvent, rev: boolean) {
-    e.stopPropagation();
-    e.preventDefault();
+    if (rev) {
+      let nextResultIndex = Math.max(0, selectedResultIndex - 1);
 
+      if (selectedResultIndex === 0) {
+        nextResultIndex = resultCount - 1;
+      }
+      this.setState({ selectedResultIndex: nextResultIndex });
+      this.onSelectResultItem(searchResults[nextResultIndex]);
+    } else {
+      let nextResultIndex = Math.min(resultCount - 1, selectedResultIndex + 1);
+
+      if (selectedResultIndex === resultCount - 1) {
+        nextResultIndex = 0;
+      }
+      this.setState({ selectedResultIndex: nextResultIndex });
+      this.onSelectResultItem(searchResults[nextResultIndex]);
+    }
+  }
+
+  traverseCodeResults(rev: boolean) {
     const ed = this.props.editor;
 
     if (!ed) {
@@ -337,73 +411,87 @@ const SearchBar = React.createClass({
     } = this.props;
 
     if (query === "") {
-      this.setState({ enabled: true });
+      this.props.toggleFileSearch(true);
     }
 
-    if (index == -1) {
-      clearIndex(ctx, query, modifiers);
+    if (index == -1 && modifiers) {
+      clearIndex(ctx, query, modifiers.toJS());
     }
 
-    const findFnc = rev ? findPrev : findNext;
-    const newIndex = findFnc(ctx, query, true, modifiers);
-    updateSearchResults({
-      index: newIndex,
-      count
-    });
-  },
+    if (modifiers) {
+      const findFnc = rev ? findPrev : findNext;
+      const newIndex = findFnc(ctx, query, true, modifiers.toJS());
+      updateSearchResults({
+        index: newIndex,
+        count
+      });
+    }
+  }
+
+  traverseResults(e: SyntheticEvent, rev: boolean) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const { symbolSearchEnabled } = this.state;
+
+    if (symbolSearchEnabled) {
+      return this.traverseSymbolResults(rev);
+    }
+
+    this.traverseCodeResults(rev);
+  }
 
   // Handlers
-  selectResultItem(item: FormattedSymbolDeclaration) {
+  selectResultItem(e: SyntheticEvent, item: SymbolDeclaration) {
     const { selectSource, selectedSource } = this.props;
+
     if (selectedSource) {
-      selectSource(
-        selectedSource.get("id"), { line: item.location.start.line });
+      selectSource(selectedSource.get("id"), {
+        line: item.location.start.line
+      });
+
+      this.closeSearch(e);
     }
-  },
+  }
 
   onSelectResultItem(item: FormattedSymbolDeclaration) {
     const { selectSource, selectedSource } = this.props;
     if (selectedSource) {
-      selectSource(
-        selectedSource.get("id"), { line: item.location.start.line });
+      selectSource(selectedSource.get("id"), {
+        line: item.location.start.line
+      });
     }
-  },
+  }
 
-  onChange(e: any) {
+  async onChange(e: any) {
     return this.doSearch(e.target.value);
-  },
+  }
 
   onKeyUp(e: SyntheticKeyboardEvent) {
-    if (e.key != "Enter") {
+    if (e.key !== "Enter" || e.key !== "F3") {
       return;
     }
 
     this.traverseResults(e, e.shiftKey);
-  },
+  }
 
   onKeyDown(e: SyntheticKeyboardEvent) {
-    if (!this.state.symbolSearchEnabled || this.props.query == "") {
+    const { symbolSearchEnabled, symbolSearchResults } = this.state;
+    if (!symbolSearchEnabled || this.props.query == "") {
       return;
     }
 
-    const searchResults = this.state.symbolSearchResults,
-      resultCount = searchResults.length;
+    const searchResults = symbolSearchResults;
 
     if (e.key === "ArrowUp") {
-      const selectedResultIndex = Math
-        .max(0, this.state.selectedResultIndex - 1);
-      this.setState({ selectedResultIndex });
-      this.onSelectResultItem(searchResults[selectedResultIndex]);
+      this.traverseSymbolResults(true);
       e.preventDefault();
     } else if (e.key === "ArrowDown") {
-      const selectedResultIndex = Math
-        .min(resultCount - 1, this.state.selectedResultIndex + 1);
-      this.setState({ selectedResultIndex });
-      this.onSelectResultItem(searchResults[selectedResultIndex]);
+      this.traverseSymbolResults(false);
       e.preventDefault();
     } else if (e.key === "Enter") {
       if (searchResults.length) {
-        this.selectResultItem(searchResults[this.state.selectedResultIndex]);
+        this.selectResultItem(e, searchResults[this.state.selectedResultIndex]);
       }
       this.closeSearch(e);
       e.preventDefault();
@@ -411,14 +499,22 @@ const SearchBar = React.createClass({
       this.closeSearch(e);
       e.preventDefault();
     }
-  },
+  }
 
   // Renderers
   buildSummaryMsg() {
     if (this.state.symbolSearchEnabled) {
-      return L10N.getFormatStr("sourceSearch.resultsSummary1",
-        this.state.symbolSearchResults.length);
+      if (this.state.symbolSearchResults.length > 1) {
+        return L10N.getFormatStr(
+          "editor.searchResults",
+          this.state.selectedResultIndex + 1,
+          this.state.symbolSearchResults.length
+        );
+      } else if (this.state.symbolSearchResults.length === 1) {
+        return L10N.getFormatStr("editor.singleResult");
+      }
     }
+
     const { searchResults: { count, index }, query } = this.props;
 
     if (query.trim() == "") {
@@ -434,50 +530,64 @@ const SearchBar = React.createClass({
     }
 
     return L10N.getFormatStr("editor.searchResults", index + 1, count);
-  },
+  }
 
   buildPlaceHolder() {
     const { symbolSearchEnabled, selectedSymbolType } = this.state;
     if (symbolSearchEnabled) {
-      return L10N
-        .getFormatStr(`symbolSearch.search.${selectedSymbolType}Placeholder`);
+      return L10N.getFormatStr(
+        `symbolSearch.search.${selectedSymbolType}Placeholder`
+      );
     }
 
     return L10N.getStr("sourceSearch.search.placeholder");
-  },
+  }
 
   renderSearchModifiers() {
     if (!isEnabled("searchModifiers")) {
       return;
     }
 
-    const {
-      modifiers: { caseSensitive, wholeWord, regexMatch },
-      toggleModifier } = this.props;
+    const { modifiers, toggleFileSearchModifier } = this.props;
     const { symbolSearchEnabled } = this.state;
 
-    function searchModBtn(modVal, className, svgName) {
-      const defaultMods = { caseSensitive, wholeWord, regexMatch };
-      return dom.button({
-        className: classnames(className, {
-          active: !symbolSearchEnabled && !Object.values(modVal)[0],
-          disabled: symbolSearchEnabled
-        }),
-        onClick: () => !symbolSearchEnabled ?
-        toggleModifier(Object.assign(defaultMods, modVal)) : null
-      }, Svg(svgName));
+    function searchModBtn(modVal, className, svgName, tooltip) {
+      return dom.button(
+        {
+          className: classnames(className, {
+            active: !symbolSearchEnabled && modifiers && modifiers.get(modVal),
+            disabled: symbolSearchEnabled
+          }),
+          onClick: () =>
+            (!symbolSearchEnabled ? toggleFileSearchModifier(modVal) : null),
+          title: tooltip
+        },
+        Svg(svgName)
+      );
     }
 
     return dom.div(
       { className: "search-modifiers" },
-      searchModBtn({
-        regexMatch: !regexMatch }, "regex-match-btn", "regex-match"),
-      searchModBtn({
-        caseSensitive: !caseSensitive }, "case-sensitive-btn", "case-match"),
-      searchModBtn({
-        wholeWord: !wholeWord }, "whole-word-btn", "whole-word-match")
+      searchModBtn(
+        "regexMatch",
+        "regex-match-btn",
+        "regex-match",
+        L10N.getStr("symbolSearch.searchModifier.regex")
+      ),
+      searchModBtn(
+        "caseSensitive",
+        "case-sensitive-btn",
+        "case-match",
+        L10N.getStr("symbolSearch.searchModifier.caseSensitive")
+      ),
+      searchModBtn(
+        "wholeWord",
+        "whole-word-btn",
+        "whole-word-match",
+        L10N.getStr("symbolSearch.searchModifier.wholeWord")
+      )
     );
-  },
+  }
 
   renderSearchTypeToggle() {
     if (!isEnabled("symbolSearch")) {
@@ -485,42 +595,35 @@ const SearchBar = React.createClass({
     }
     const { toggleSymbolSearch } = this;
     const { symbolSearchEnabled, selectedSymbolType } = this.state;
-    const { sourceText } = this.props;
 
     function searchTypeBtn(searchType) {
-      return dom.button({
-        className: classnames("search-type-btn", {
-          active: symbolSearchEnabled && selectedSymbolType == searchType
-        }),
-        onClick: e => {
-          if (selectedSymbolType == searchType) {
-            toggleSymbolSearch(e, { toggle: true, searchType });
-            return;
+      return dom.button(
+        {
+          className: classnames("search-type-btn", {
+            active: symbolSearchEnabled && selectedSymbolType == searchType
+          }),
+          onClick: e => {
+            if (selectedSymbolType == searchType) {
+              toggleSymbolSearch(e, { toggle: true, searchType });
+              return;
+            }
+            toggleSymbolSearch(e, { toggle: false, searchType });
           }
-          toggleSymbolSearch(e, { toggle: false, searchType });
-        }
-      }, searchType);
-    }
-
-    let classSearchBtn;
-    if (sourceText) {
-      const symbolDeclarations = getSymbols(sourceText.toJS());
-      if (symbolDeclarations.classes.length) {
-        classSearchBtn = searchTypeBtn("classes");
-      }
+        },
+        searchType
+      );
     }
 
     return dom.section(
       { className: "search-type-toggles" },
       dom.h1(
         { className: "search-toggle-title" },
-        "Search for:"
+        L10N.getStr("editor.searchTypeToggleTitle")
       ),
       searchTypeBtn("functions"),
-      searchTypeBtn("variables"),
-      classSearchBtn
+      searchTypeBtn("variables")
     );
-  },
+  }
 
   renderBottomBar() {
     if (!isEnabled("searchModifiers") || !isEnabled("symbolSearch")) {
@@ -532,15 +635,16 @@ const SearchBar = React.createClass({
       this.renderSearchTypeToggle(),
       this.renderSearchModifiers()
     );
-  },
+  }
 
   renderResults() {
     const {
-      symbolSearchEnabled, symbolSearchResults, selectedResultIndex
+      symbolSearchEnabled,
+      symbolSearchResults,
+      selectedResultIndex
     } = this.state;
     const { query } = this.props;
-    if (query == "" ||
-      !symbolSearchEnabled || !symbolSearchResults.length) {
+    if (query == "" || !symbolSearchEnabled || !symbolSearchResults.length) {
       return;
     }
 
@@ -550,15 +654,12 @@ const SearchBar = React.createClass({
       selectItem: this.selectResultItem,
       ref: "resultList"
     });
-  },
+  }
 
   render() {
-    const {
-      searchResults: { count },
-      query,
-    } = this.props;
+    const { searchResults: { count }, query, searchOn } = this.props;
 
-    if (!this.state.enabled) {
+    if (!searchOn) {
       return dom.div();
     }
 
@@ -572,12 +673,48 @@ const SearchBar = React.createClass({
         onChange: this.onChange,
         onKeyUp: this.onKeyUp,
         onKeyDown: this.onKeyDown,
+        handleNext: e => this.traverseResults(e, false),
+        handlePrev: e => this.traverseResults(e, true),
         handleClose: this.closeSearch
       }),
       this.renderResults(),
       this.renderBottomBar()
     );
   }
-});
+}
 
-module.exports = SearchBar;
+SearchBar.propTypes = {
+  editor: PropTypes.object,
+  sourceText: ImPropTypes.map,
+  selectSource: PropTypes.func.isRequired,
+  selectedSource: ImPropTypes.map,
+  searchOn: PropTypes.bool,
+  toggleFileSearch: PropTypes.func.isRequired,
+  searchResults: PropTypes.object.isRequired,
+  modifiers: ImPropTypes.recordOf({
+    caseSensitive: PropTypes.bool.isRequired,
+    regexMatch: PropTypes.bool.isRequired,
+    wholeWord: PropTypes.bool.isRequired
+  }).isRequired,
+  toggleFileSearchModifier: PropTypes.func.isRequired,
+  query: PropTypes.string.isRequired,
+  setFileSearchQuery: PropTypes.func.isRequired,
+  updateSearchResults: PropTypes.func.isRequired
+};
+
+SearchBar.displayName = "SearchBar";
+
+SearchBar.contextTypes = {
+  shortcuts: PropTypes.object
+};
+
+export default connect(
+  state => {
+    return {
+      searchOn: getFileSearchState(state),
+      query: getFileSearchQueryState(state),
+      modifiers: getFileSearchModifierState(state)
+    };
+  },
+  dispatch => bindActionCreators(actions, dispatch)
+)(SearchBar);

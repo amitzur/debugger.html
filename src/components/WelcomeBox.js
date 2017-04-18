@@ -1,27 +1,19 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
-const { connect } = require("react-redux");
-const { bindActionCreators } = require("redux");
-const actions = require("../actions");
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
+import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
 
-const { getPaneCollapse } = require("../selectors");
-const { formatKeyShortcut } = require("../utils/text");
+import actions from "../actions";
+import { getPaneCollapse } from "../selectors";
+import { formatKeyShortcut } from "../utils/text";
+
 const PaneToggleButton = createFactory(
-  require("./shared/Button/PaneToggle")
+  require("./shared/Button/PaneToggle").default
 );
 
-require("./WelcomeBox.css");
+import "./WelcomeBox.css";
 
-const WelcomeBox = React.createClass({
-  propTypes: {
-    horizontal: PropTypes.bool,
-    togglePaneCollapse: PropTypes.func,
-    endPanelCollapsed: PropTypes.bool,
-  },
-
-  displayName: "WelcomeBox",
-
+class WelcomeBox extends Component {
   renderToggleButton() {
     if (this.props.horizontal) {
       return;
@@ -33,13 +25,12 @@ const WelcomeBox = React.createClass({
       horizontal: this.props.horizontal,
       handleClick: this.props.togglePaneCollapse
     });
-  },
+  }
 
   render() {
-    const searchLabel = L10N.getFormatStr("welcome.search",
-      formatKeyShortcut(
-        `CmdOrCtrl+${L10N.getStr("sources.search.key")}`
-      )
+    const searchLabel = L10N.getFormatStr(
+      "welcome.search",
+      formatKeyShortcut(`CmdOrCtrl+${L10N.getStr("sources.search.key")}`)
     );
     return dom.div(
       { className: "welcomebox" },
@@ -47,11 +38,19 @@ const WelcomeBox = React.createClass({
       this.renderToggleButton()
     );
   }
-});
+}
 
-module.exports = connect(
+WelcomeBox.propTypes = {
+  horizontal: PropTypes.bool,
+  togglePaneCollapse: PropTypes.func,
+  endPanelCollapsed: PropTypes.bool
+};
+
+WelcomeBox.displayName = "WelcomeBox";
+
+export default connect(
   state => ({
-    endPanelCollapsed: getPaneCollapse(state, "end"),
+    endPanelCollapsed: getPaneCollapse(state, "end")
   }),
   dispatch => bindActionCreators(actions, dispatch)
 )(WelcomeBox);

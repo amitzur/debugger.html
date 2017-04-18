@@ -34,15 +34,17 @@ export type SourcesState = {
   tabs: I.List<any>
 };
 
-const State = makeRecord(({
-  sources: I.Map(),
-  selectedLocation: undefined,
-  pendingSelectedLocation: prefs.pendingSelectedLocation,
-  sourcesText: I.Map(),
-  tabs: I.List(restoreTabs())
-} : SourcesState));
+const State = makeRecord(
+  ({
+    sources: I.Map(),
+    selectedLocation: undefined,
+    pendingSelectedLocation: prefs.pendingSelectedLocation,
+    sourcesText: I.Map(),
+    tabs: I.List(restoreTabs())
+  }: SourcesState)
+);
 
-function update(state = State(), action: Action) : Record<SourcesState> {
+function update(state = State(), action: Action): Record<SourcesState> {
   let availableTabs = null;
   let location = null;
 
@@ -90,18 +92,16 @@ function update(state = State(), action: Action) : Record<SourcesState> {
     case "CLOSE_TAB":
       availableTabs = removeSourceFromTabList(state.tabs, action.url);
 
-      return state.merge({ tabs: availableTabs })
-        .set("selectedLocation", {
-          sourceId: getNewSelectedSourceId(state, availableTabs)
-        });
+      return state.merge({ tabs: availableTabs }).set("selectedLocation", {
+        sourceId: getNewSelectedSourceId(state, availableTabs)
+      });
 
     case "CLOSE_TABS":
       availableTabs = removeSourcesFromTabList(state.tabs, action.urls);
 
-      return state.merge({ tabs: availableTabs })
-        .set("selectedLocation", {
-          sourceId: getNewSelectedSourceId(state, availableTabs)
-        });
+      return state.merge({ tabs: availableTabs }).set("selectedLocation", {
+        sourceId: getNewSelectedSourceId(state, availableTabs)
+      });
 
     case "LOAD_SOURCE_TEXT":
       return _updateText(state, action);
@@ -122,8 +122,7 @@ function update(state = State(), action: Action) : Record<SourcesState> {
       const source = getSelectedSource({ sources: state });
       const url = source && source.get("url");
       prefs.pendingSelectedLocation = { url };
-      return State()
-        .set("pendingSelectedLocation", { url });
+      return State().set("pendingSelectedLocation", { url });
   }
 
   return state;
@@ -133,7 +132,7 @@ function update(state = State(), action: Action) : Record<SourcesState> {
 // asynchronous actions is wrong. The `value` may be null for the
 // "start" and "error" states but we don't type it like that. We need
 // to rethink how we type async actions.
-function _updateText(state, action : any) : Record<SourcesState> {
+function _updateText(state, action: any): Record<SourcesState> {
   const source = action.source;
   const sourceText = action.value;
 
@@ -147,16 +146,22 @@ function _updateText(state, action : any) : Record<SourcesState> {
   }
 
   if (action.status === "error") {
-    return state.setIn(["sourcesText", source.id], I.Map({
-      error: action.error
-    }));
+    return state.setIn(
+      ["sourcesText", source.id],
+      I.Map({
+        error: action.error
+      })
+    );
   }
 
-  return state.setIn(["sourcesText", source.id], I.Map({
-    text: sourceText.text,
-    id: source.id,
-    contentType: sourceText.contentType
-  }));
+  return state.setIn(
+    ["sourcesText", source.id],
+    I.Map({
+      text: sourceText.text,
+      id: source.id,
+      contentType: sourceText.contentType
+    })
+  );
 }
 
 function removeSourceFromTabList(tabs, url) {
@@ -183,8 +188,7 @@ function restoreTabs() {
  * @memberof reducers/sources
  * @static
  */
-function updateTabList(
-  state: OuterState, url: string, tabIndex?: number) {
+function updateTabList(state: OuterState, url: string, tabIndex?: number) {
   let tabs = state.sources.get("tabs");
 
   const urlIndex = tabs.indexOf(url);
@@ -192,9 +196,7 @@ function updateTabList(
 
   if (includesUrl) {
     if (tabIndex != undefined) {
-      tabs = tabs
-        .delete(urlIndex)
-        .insert(tabIndex, url);
+      tabs = tabs.delete(urlIndex).insert(tabIndex, url);
     }
   } else {
     tabs = tabs.insert(0, url);
@@ -213,7 +215,7 @@ function updateTabList(
  * @memberof reducers/sources
  * @static
  */
-function getNewSelectedSourceId(state: SourcesState, availableTabs) : string {
+function getNewSelectedSourceId(state: SourcesState, availableTabs): string {
   const selectedLocation = state.selectedLocation;
   if (!selectedLocation) {
     return "";
@@ -246,8 +248,9 @@ function getNewSelectedSourceId(state: SourcesState, availableTabs) : string {
   const leftNeighborIndex = Math.max(tabUrls.indexOf(selectedTabUrl) - 1, 0);
   const lastAvailbleTabIndex = availableTabs.size - 1;
   const newSelectedTabIndex = Math.min(leftNeighborIndex, lastAvailbleTabIndex);
-  let tabSource = state.sources.find(source =>
-    source.get("url") === availableTabs.toJS()[newSelectedTabIndex]);
+  let tabSource = state.sources.find(
+    source => source.get("url") === availableTabs.toJS()[newSelectedTabIndex]
+  );
 
   if (tabSource) {
     return tabSource.get("id");
@@ -290,8 +293,7 @@ function getSourceText(state: OuterState, id: ?string) {
 }
 
 function getSourceTabs(state: OuterState) {
-  return state.sources.tabs
-    .filter(tab => getSourceByURL(state, tab));
+  return state.sources.tabs.filter(tab => getSourceByURL(state, tab));
 }
 
 function getSelectedSource(state: OuterState) {
@@ -300,8 +302,8 @@ function getSelectedSource(state: OuterState) {
     return;
   }
 
-  return state.sources.sources.find(source =>
-    source.get("id") == selectedLocation.sourceId
+  return state.sources.sources.find(
+    source => source.get("id") == selectedLocation.sourceId
   );
 }
 

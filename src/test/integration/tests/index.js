@@ -7,6 +7,7 @@ module.exports = {
   expressions: require("./expressions"),
   debuggerButtons: require("./debugger-buttons"),
   editorSelect: require("./editor-select"),
+  editorPreview: require("./editor-preview"),
   editorGutter: require("./editor-gutter"),
   editorHighlight: require("./editor-highlight"),
   keyboardNavigation: require("./keyboard-navigation"),
@@ -18,9 +19,11 @@ module.exports = {
   prettyPrintPaused: require("./pretty-print-paused"),
   returnvalues: require("./returnvalues"),
   scopes: require("./scopes"),
+  scopesMutations: require("./scopes-mutations"),
   searching: require("./searching"),
   sources: require("./sources"),
   sourceMaps: require("./sourcemaps"),
   sourceMaps2: require("./sourcemaps2"),
-  sourceMapsBogus: require("./sourcemaps-bogus")
-}
+  sourceMapsBogus: require("./sourcemaps-bogus"),
+  tabs: require("./tabs")
+};

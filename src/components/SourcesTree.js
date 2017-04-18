@@ -1,22 +1,33 @@
 // @flow
-const React = require("react");
-const { bindActionCreators } = require("redux");
-const { connect } = require("react-redux");
-const { DOM: dom, PropTypes } = React;
-const classnames = require("classnames");
-const ImPropTypes = require("react-immutable-proptypes");
-const { Set } = require("immutable");
-const { getShownSource, getSelectedSource } = require("../selectors");
-const {
-  nodeHasChildren, createParentMap, isDirectory, addToTree,
-  collapseTree, createTree, getDirectories
-} = require("../utils/sources-tree.js");
-const ManagedTree = React.createFactory(require("./shared/ManagedTree"));
-const actions = require("../actions");
-const Svg = require("./shared/Svg");
-const { showMenu } = require("./shared/menu");
-const { copyToTheClipboard } = require("../utils/clipboard");
-const { throttle } = require("../utils/utils");
+
+import { bindActionCreators } from "redux";
+import { connect } from "react-redux";
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
+import classnames from "classnames";
+import ImPropTypes from "react-immutable-proptypes";
+import { Set } from "immutable";
+import {
+  getShownSource,
+  getSelectedSource,
+  getDebuggeeUrl
+} from "../selectors";
+
+import {
+  nodeHasChildren,
+  createParentMap,
+  isDirectory,
+  addToTree,
+  collapseTree,
+  createTree,
+  getDirectories
+} from "../utils/sources-tree.js";
+
+const ManagedTree = createFactory(require("./shared/ManagedTree").default);
+import actions from "../actions";
+import Svg from "./shared/Svg";
+import { showMenu } from "devtools-launchpad";
+import { copyToTheClipboard } from "../utils/clipboard";
+import { throttle } from "../utils/utils";
 
 type CreateTree = {
   focusedItem?: any,
@@ -27,37 +38,53 @@ type CreateTree = {
   highlightItems?: any
 };
 
-let SourcesTree = React.createClass({
-  propTypes: {
-    sources: ImPropTypes.map.isRequired,
-    selectSource: PropTypes.func.isRequired,
-    shownSource: PropTypes.string,
-    selectedSource: ImPropTypes.map
-  },
+class SourcesTree extends Component {
+  state: CreateTree;
+  focusItem: Function;
+  selectItem: Function;
+  getIcon: Function;
+  queueUpdate: Function;
+  onContextMenu: Function;
+  renderItem: Function;
+  mounted: boolean;
 
-  displayName: "SourcesTree",
+  constructor(props) {
+    super(props);
+    this.state = createTree(this.props.sources, this.props.debuggeeUrl);
 
-  getInitialState(): CreateTree {
-    return createTree(this.props.sources);
-  },
+    this.focusItem = this.focusItem.bind(this);
+    this.selectItem = this.selectItem.bind(this);
+    this.getIcon = this.getIcon.bind(this);
+    this.onContextMenu = this.onContextMenu.bind(this);
+    this.renderItem = this.renderItem.bind(this);
 
-  queueUpdate: throttle(function() {
-    if (!this.isMounted()) {
-      return;
-    }
+    this.queueUpdate = throttle(function() {
+      if (!this.mounted) {
+        return;
+      }
 
-    this.forceUpdate();
-  }, 50),
+      this.forceUpdate();
+    }, 50);
+  }
+
+  componentDidMount() {
+    this.mounted = true;
+  }
+
+  componentWillUnMount() {
+    this.mounted = false;
+  }
 
   shouldComponentUpdate() {
     this.queueUpdate();
     return false;
-  },
+  }
 
   componentWillReceiveProps(nextProps) {
     const { selectedSource } = this.props;
-    if (nextProps.shownSource &&
-        nextProps.shownSource != this.props.shownSource) {
+    if (
+      nextProps.shownSource && nextProps.shownSource != this.props.shownSource
+    ) {
       const listItems = getDirectories(
         nextProps.shownSource,
         this.state.sourceTree
@@ -70,8 +97,9 @@ let SourcesTree = React.createClass({
       return this.setState({ listItems });
     }
 
-    if (nextProps.selectedSource &&
-        nextProps.selectedSource != selectedSource) {
+    if (
+      nextProps.selectedSource && nextProps.selectedSource != selectedSource
+    ) {
       const highlightItems = getDirectories(
         nextProps.selectedSource.get("url"),
         this.state.sourceTree
@@ -85,7 +113,7 @@ let SourcesTree = React.createClass({
     }
 
     if (nextProps.sources.size === 0) {
-      this.setState(createTree(nextProps.sources));
+      this.setState(createTree(nextProps.sources, this.props.debuggeeUrl));
       return;
     }
 
@@ -95,7 +123,7 @@ let SourcesTree = React.createClass({
 
     const uncollapsedTree = this.state.uncollapsedTree;
     for (let source of newSet) {
-      addToTree(uncollapsedTree, source);
+      addToTree(uncollapsedTree, source, this.props.debuggeeUrl);
     }
 
     // TODO: recreating the tree every time messes with the expanded
@@ -103,23 +131,25 @@ let SourcesTree = React.createClass({
     // being the same. The result is that if a source is added at a
     // later time, all expanded state is lost.
     const sourceTree = newSet.size > 0
-          ? collapseTree(uncollapsedTree)
-          : this.state.sourceTree;
+      ? collapseTree(uncollapsedTree)
+      : this.state.sourceTree;
 
-    this.setState({ uncollapsedTree,
+    this.setState({
+      uncollapsedTree,
       sourceTree,
-      parentMap: createParentMap(sourceTree) });
-  },
+      parentMap: createParentMap(sourceTree)
+    });
+  }
 
   focusItem(item) {
     this.setState({ focusedItem: item });
-  },
+  }
 
   selectItem(item) {
     if (!nodeHasChildren(item)) {
       this.props.selectSource(item.contents.get("id"));
     }
-  },
+  }
 
   getIcon(item, depth) {
     if (depth === 0) {
@@ -131,7 +161,7 @@ let SourcesTree = React.createClass({
     }
 
     return Svg("folder");
-  },
+  }
 
   onContextMenu(event, item) {
     const copySourceUrlLabel = L10N.getStr("copySourceUrl");
@@ -156,28 +186,26 @@ let SourcesTree = React.createClass({
     }
 
     showMenu(event, menuOptions);
-  },
+  }
 
   renderItem(item, depth, focused, _, expanded, { setExpanded }) {
-    const arrow = Svg(
-      "arrow",
-      {
-        className: classnames(
-          { expanded: expanded,
-            hidden: !nodeHasChildren(item) }
-        ),
-        onClick: e => {
-          e.stopPropagation();
-          setExpanded(item, !expanded);
-        }
+    const arrow = Svg("arrow", {
+      className: classnames({
+        expanded: expanded,
+        hidden: !nodeHasChildren(item)
+      }),
+      onClick: e => {
+        e.stopPropagation();
+        setExpanded(item, !expanded);
       }
-    );
+    });
 
     const icon = this.getIcon(item, depth);
     let paddingDir = "paddingRight";
     if (document.body && document.body.parentElement) {
-      paddingDir = document.body.parentElement.dir == "ltr" ?
-                         "paddingLeft" : "paddingRight";
+      paddingDir = document.body.parentElement.dir == "ltr"
+        ? "paddingLeft"
+        : "paddingRight";
     }
 
     return dom.div(
@@ -189,15 +217,20 @@ let SourcesTree = React.createClass({
           this.selectItem(item);
           setExpanded(item, !expanded);
         },
-        onContextMenu: (e) => this.onContextMenu(e, item)
+        onContextMenu: e => this.onContextMenu(e, item)
       },
       dom.div(null, arrow, icon, item.name)
     );
-  },
+  }
 
-  render: function() {
-    const { focusedItem, sourceTree,
-      parentMap, listItems, highlightItems } = this.state;
+  render() {
+    const {
+      focusedItem,
+      sourceTree,
+      parentMap,
+      listItems,
+      highlightItems
+    } = this.state;
     const isEmpty = sourceTree.contents.length === 0;
 
     const tree = ManagedTree({
@@ -222,22 +255,46 @@ let SourcesTree = React.createClass({
       renderItem: this.renderItem
     });
 
-    return dom.div({
-      className: "sources-list",
-      onKeyDown: e => {
-        if (e.keyCode === 13 && focusedItem) {
-          this.selectItem(focusedItem);
-        }
-      }
-    }, tree);
-  }
-});
+    const noSourcesMessage = dom.div(
+      {
+        className: "no-sources-message"
+      },
+      L10N.getStr("sources.noSourcesAvailable")
+    );
 
-module.exports = connect(
+    if (isEmpty) {
+      return noSourcesMessage;
+    }
+    return dom.div(
+      {
+        className: "sources-list",
+        onKeyDown: e => {
+          if (e.keyCode === 13 && focusedItem) {
+            this.selectItem(focusedItem);
+          }
+        }
+      },
+      tree
+    );
+  }
+}
+
+SourcesTree.propTypes = {
+  sources: ImPropTypes.map.isRequired,
+  selectSource: PropTypes.func.isRequired,
+  shownSource: PropTypes.string,
+  selectedSource: ImPropTypes.map,
+  debuggeeUrl: PropTypes.string.isRequired
+};
+
+SourcesTree.displayName = "SourcesTree";
+
+export default connect(
   state => {
     return {
       shownSource: getShownSource(state),
-      selectedSource: getSelectedSource(state)
+      selectedSource: getSelectedSource(state),
+      debuggeeUrl: getDebuggeeUrl(state)
     };
   },
   dispatch => bindActionCreators(actions, dispatch)

@@ -1,19 +1,22 @@
-const { tools: { makeBundle, symlinkTests, copyFile }} = require("devtools-launchpad/index");
+const {
+  tools: { makeBundle, symlinkTests, copyFile }
+} = require("devtools-launchpad/index");
 const path = require("path");
 const fs = require("fs");
+const rimraf = require("rimraf");
 
 function start() {
-  console.log("start: publish assets")
-  const projectPath = path.resolve(__dirname, "..")
-  const mcModulePath =  "devtools/client/debugger/new";
+  console.log("start: publish assets");
+  const projectPath = path.resolve(__dirname, "..");
+  const mcModulePath = "devtools/client/debugger/new";
 
   const buildDir = path.resolve(projectPath, "assets/build");
   const assetsDir = path.resolve(projectPath, "assets");
 
-  if (!fs.existsSync(buildDir)) {
-    fs.mkdirSync(assetsDir);
-    fs.mkdirSync(buildDir);
+  if (fs.existsSync(buildDir)) {
+    rimraf(buildDir, {}, () => {});
   }
+  fs.mkdirSync(buildDir);
 
   copyFile(
     path.resolve(projectPath, "assets/panel"),
@@ -31,9 +34,8 @@ function start() {
     outputPath: `${projectPath}/assets/build`,
     projectPath
   }).then(() => {
-    console.log("done: publish assets")
-  })
-
+    console.log("done: publish assets");
+  });
 }
 
 start();

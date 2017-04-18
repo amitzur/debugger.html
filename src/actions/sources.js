@@ -9,59 +9,82 @@
  * @module actions/sources
  */
 
-const defer = require("../utils/defer");
-const { PROMISE } = require("../utils/redux/middleware/promise");
-const assert = require("../utils/assert");
-const { updateFrameLocations } = require("../utils/pause");
-const {
-  getOriginalURLs, getOriginalSourceText,
-  generatedToOriginalId, isOriginalId,
-  getOriginalLocation, getGeneratedLocation,
-  isGeneratedId, applySourceMap, shouldSourceMap
-} = require("../utils/source-map");
+import defer from "../utils/defer";
+import { PROMISE } from "../utils/redux/middleware/promise";
+import assert from "../utils/assert";
+import { updateFrameLocations } from "../utils/pause";
+import { addBreakpoint } from "./breakpoints";
 
-const { prettyPrint } = require("../utils/pretty-print");
-const { getPrettySourceURL } = require("../utils/source");
+import { prettyPrint } from "../utils/pretty-print";
+import { getPrettySourceURL } from "../utils/source";
 
-const constants = require("../constants");
-const { removeDocument } = require("../utils/editor");
+import constants from "../constants";
+import { prefs } from "../utils/prefs";
+import { removeDocument } from "../utils/editor";
 
-const {
-  getSource, getSourceByURL, getSourceText,
-  getPendingSelectedLocation, getFrames
-} = require("../selectors");
+import {
+  getSource,
+  getSourceByURL,
+  getSourceText,
+  getBreakpoint,
+  getPendingSelectedLocation,
+  getPendingBreakpoints,
+  getFrames
+} from "../selectors";
 
 import type { Source, SourceText } from "../types";
 import type { ThunkArgs } from "./types";
+
+// If a request has been made to show this source, go ahead and
+// select it.
+function checkSelectedSource(state, dispatch, source) {
+  const pendingLocation = getPendingSelectedLocation(state);
+  if (pendingLocation && pendingLocation.url === source.url) {
+    dispatch(selectSource(source.id, { line: pendingLocation.line }));
+  }
+}
+
+function checkPendingBreakpoints(state, dispatch, source) {
+  const pendingBreakpoints = getPendingBreakpoints(state);
+
+  if (pendingBreakpoints) {
+    pendingBreakpoints.forEach(pendingBreakpoint => {
+      const { location: { line, sourceUrl }, condition } = pendingBreakpoint;
+      const sameSource = sourceUrl && sourceUrl == source.url;
+
+      const location = { sourceId: source.id, sourceUrl, line };
+
+      const bp = getBreakpoint(state, location);
+
+      if (sameSource && !bp) {
+        dispatch(addBreakpoint(location, { condition }));
+      }
+    });
+  }
+}
 
 /**
  * Handler for the debugger client's unsolicited newSource notification.
  * @memberof actions/sources
  * @static
  */
-function newSource(source: Source) {
+export function newSource(source: Source) {
   return ({ dispatch, getState }: ThunkArgs) => {
-    if (shouldSourceMap()) {
+    if (prefs.clientSourceMapsEnabled) {
       dispatch(loadSourceMap(source));
     }
 
-    dispatch({
-      type: constants.ADD_SOURCE,
-      source
-    });
+    dispatch({ type: constants.ADD_SOURCE, source });
 
-    // If a request has been made to show this source, go ahead and
-    // select it.
-    const pendingLocation = getPendingSelectedLocation(getState());
-    if (pendingLocation && pendingLocation.url === source.url) {
-      dispatch(selectSource(source.id, { line: pendingLocation.line }));
-    }
+    checkSelectedSource(getState(), dispatch, source);
+    checkPendingBreakpoints(getState(), dispatch, source);
   };
 }
 
-function newSources(sources: Source[]) {
+export function newSources(sources: Source[]) {
   return ({ dispatch, getState }: ThunkArgs) => {
-    sources.filter(source => !getSource(getState(), source.id))
+    sources
+      .filter(source => !getSource(getState(), source.id))
       .forEach(source => dispatch(newSource(source)));
   };
 }
@@ -71,32 +94,32 @@ function newSources(sources: Source[]) {
  * @static
  */
 function loadSourceMap(generatedSource) {
-  return async function({ dispatch, getState }: ThunkArgs) {
-    const urls = await getOriginalURLs(generatedSource);
+  return async function({ dispatch, getState, sourceMaps }: ThunkArgs) {
+    const urls = await sourceMaps.getOriginalURLs(generatedSource);
     if (!urls) {
       // If this source doesn't have a sourcemap, do nothing.
       return;
     }
 
+    let state = getState();
     const originalSources = urls.map(originalUrl => {
       return {
         url: originalUrl,
-        id: generatedToOriginalId(generatedSource.id, originalUrl),
+        id: sourceMaps.generatedToOriginalId(generatedSource.id, originalUrl),
         isPrettyPrinted: false
       };
     });
 
-    dispatch({
-      type: constants.ADD_SOURCES,
-      sources: originalSources
+    dispatch({ type: constants.ADD_SOURCES, sources: originalSources });
+
+    originalSources.forEach(source => {
+      checkSelectedSource(state, dispatch, source);
+      checkPendingBreakpoints(state, dispatch, source);
     });
   };
 }
 
-type SelectSourceOptions = {
-  tabIndex?: number,
-  line?: number
-};
+type SelectSourceOptions = { tabIndex?: number, line?: number };
 
 /**
  * Deterministically select a source that has a given URL. This will
@@ -107,7 +130,10 @@ type SelectSourceOptions = {
  * @memberof actions/sources
  * @static
  */
-function selectSourceURL(url: string, options: SelectSourceOptions = {}) {
+export function selectSourceURL(
+  url: string,
+  options: SelectSourceOptions = {}
+) {
   return ({ dispatch, getState }: ThunkArgs) => {
     const source = getSourceByURL(getState(), url);
     if (source) {
@@ -127,7 +153,7 @@ function selectSourceURL(url: string, options: SelectSourceOptions = {}) {
  * @memberof actions/sources
  * @static
  */
-function selectSource(id: string, options: SelectSourceOptions = {}) {
+export function selectSource(id: string, options: SelectSourceOptions = {}) {
   return ({ dispatch, getState, client }: ThunkArgs) => {
     if (!client) {
       // No connection, do nothing. This happens when the debugger is
@@ -135,12 +161,18 @@ function selectSource(id: string, options: SelectSourceOptions = {}) {
       return;
     }
 
-    const source = getSource(getState(), id).toJS();
+    let source = getSource(getState(), id);
+
+    if (!source) {
+      return;
+    }
+
+    source = source.toJS();
 
     // Make sure to start a request to load the source text.
     dispatch(loadSourceText(source));
 
-    dispatch({ type: constants.SET_FILE_SEARCH, searchOn: false });
+    dispatch({ type: constants.TOGGLE_PROJECT_SEARCH, value: false });
 
     dispatch({
       type: constants.SELECT_SOURCE,
@@ -155,21 +187,29 @@ function selectSource(id: string, options: SelectSourceOptions = {}) {
  * @memberof actions/sources
  * @static
  */
-function jumpToMappedLocation(sourceLocation: any) {
-  return async function({ dispatch, getState, client }: ThunkArgs) {
+export function jumpToMappedLocation(sourceLocation: any) {
+  return async function({ dispatch, getState, client, sourceMaps }: ThunkArgs) {
     if (!client) {
       return;
     }
 
     const source = getSource(getState(), sourceLocation.sourceId);
-    const pairedLocation = isOriginalId(sourceLocation.sourceId)
-      ? await getGeneratedLocation(sourceLocation, source.toJS())
-      : await getOriginalLocation(sourceLocation, source.toJS());
+    let pairedLocation;
+    if (sourceMaps.isOriginalId(sourceLocation.sourceId)) {
+      pairedLocation = await sourceMaps.getGeneratedLocation(
+        sourceLocation,
+        source.toJS()
+      );
+    } else {
+      pairedLocation = await sourceMaps.getOriginalLocation(
+        sourceLocation,
+        source.toJS()
+      );
+    }
 
-    return dispatch(selectSource(
-      pairedLocation.sourceId,
-      { line: pairedLocation.line }
-    ));
+    return dispatch(
+      selectSource(pairedLocation.sourceId, { line: pairedLocation.line })
+    );
   };
 }
 
@@ -177,19 +217,16 @@ function jumpToMappedLocation(sourceLocation: any) {
  * @memberof actions/sources
  * @static
  */
-function closeTab(url: string) {
+export function closeTab(url: string) {
   removeDocument(url);
-  return {
-    type: constants.CLOSE_TAB,
-    url
-  };
+  return { type: constants.CLOSE_TAB, url };
 }
 
 /**
  * @memberof actions/sources
  * @static
  */
-function closeTabs(urls: string[]) {
+export function closeTabs(urls: string[]) {
   return ({ dispatch, getState, client }: ThunkArgs) => {
     urls.forEach(url => {
       const source = getSourceByURL(getState(), url);
@@ -198,10 +235,7 @@ function closeTabs(urls: string[]) {
       }
     });
 
-    dispatch({
-      type: constants.CLOSE_TABS,
-      urls
-    });
+    dispatch({ type: constants.CLOSE_TABS, urls });
   };
 }
 
@@ -217,8 +251,8 @@ function closeTabs(urls: string[]) {
  *          A promise that resolves to [aSource, prettyText] or rejects to
  *          [aSource, error].
  */
-function togglePrettyPrint(sourceId: string) {
-  return ({ dispatch, getState, client }: ThunkArgs) => {
+export function togglePrettyPrint(sourceId: string) {
+  return ({ dispatch, getState, client, sourceMaps }: ThunkArgs) => {
     const source = getSource(getState(), sourceId).toJS();
     let sourceText = getSourceText(getState(), sourceId);
     if (sourceText) {
@@ -229,40 +263,49 @@ function togglePrettyPrint(sourceId: string) {
       return {};
     }
 
-    assert(isGeneratedId(sourceId),
-           "Pretty-printing only allowed on generated sources");
+    assert(
+      sourceMaps.isGeneratedId(sourceId),
+      "Pretty-printing only allowed on generated sources"
+    );
 
     const url = getPrettySourceURL(source.url);
-    const id = generatedToOriginalId(source.id, url);
+    const id = sourceMaps.generatedToOriginalId(source.id, url);
     const originalSource = { url, id, isPrettyPrinted: false };
-    dispatch({
-      type: constants.ADD_SOURCE,
-      source: originalSource
-    });
+    dispatch({ type: constants.ADD_SOURCE, source: originalSource });
 
     return dispatch({
       type: constants.TOGGLE_PRETTY_PRINT,
       source: originalSource,
       [PROMISE]: (async function() {
         const { code, mappings } = await prettyPrint({
-          source, sourceText, url
+          source,
+          sourceText,
+          url
         });
 
-        await applySourceMap(source.id, url, code, mappings);
+        await sourceMaps.applySourceMap(source.id, url, code, mappings);
 
         let frames = getFrames(getState());
         if (frames) {
-          frames = await updateFrameLocations(frames.toJS());
+          frames = await updateFrameLocations(frames.toJS(), sourceMaps);
         }
 
         dispatch(selectSource(originalSource.id));
 
-        return {
-          text: code,
-          contentType: "text/javascript",
-          frames
-        };
+        return { text: code, contentType: "text/javascript", frames };
       })()
+    });
+  };
+}
+
+export function toggleBlackBox(source: Source) {
+  return async ({ dispatch, getState, client, sourceMaps }: ThunkArgs) => {
+    const { isBlackBoxed, id } = source;
+
+    return dispatch({
+      type: constants.BLACKBOX,
+      source,
+      [PROMISE]: client.blackBox(id, isBlackBoxed)
     });
   };
 }
@@ -271,8 +314,8 @@ function togglePrettyPrint(sourceId: string) {
  * @memberof actions/sources
  * @static
  */
-function loadSourceText(source: Source) {
-  return ({ dispatch, getState, client }: ThunkArgs) => {
+export function loadSourceText(source: Source) {
+  return ({ dispatch, getState, client, sourceMaps }: ThunkArgs) => {
     // Fetch the source text only once.
     let textInfo = getSourceText(getState(), source.id);
     if (textInfo) {
@@ -284,8 +327,8 @@ function loadSourceText(source: Source) {
       type: constants.LOAD_SOURCE_TEXT,
       source: source,
       [PROMISE]: (async function() {
-        if (isOriginalId(source.id)) {
-          return await getOriginalSourceText(source);
+        if (sourceMaps.isOriginalId(source.id)) {
+          return await sourceMaps.getOriginalSourceText(source);
         }
 
         const response = await client.sourceContents(source.id);
@@ -323,7 +366,7 @@ const FETCH_SOURCE_RESPONSE_DELAY = 200;
  * @returns {Promise}
  *         A promise that is resolved after source texts have been fetched.
  */
-function getTextForSources(actors: any[]) {
+export function getTextForSources(actors: any[]) {
   return ({ dispatch, getState }: ThunkArgs) => {
     let deferred = defer();
     let pending = new Set(actors);
@@ -334,15 +377,17 @@ function getTextForSources(actors: any[]) {
     // everything is considered rejected, thus no other subsequent source will
     // be getting fetched. We don't want that. Something like Q's allSettled
     // would work like a charm here.
-
     // Try to fetch as many sources as possible.
     for (let actor of actors) {
       let source = getSource(getState(), actor);
-      dispatch(loadSourceText(source)).then(({ text, contentType }) => {
-        onFetch([source, text, contentType]);
-      }, err => {
-        onError(source, err);
-      });
+      dispatch(loadSourceText(source)).then(
+        ({ text, contentType }) => {
+          onFetch([source, text, contentType]);
+        },
+        err => {
+          onError(source, err);
+        }
+      );
     }
 
     setTimeout(onTimeout, FETCH_SOURCE_RESPONSE_DELAY);
@@ -378,7 +423,7 @@ function getTextForSources(actors: any[]) {
         // Sort the fetched sources alphabetically by their url.
         if (deferred) {
           deferred.resolve(
-            fetched.sort(([aFirst], [aSecond]) => aFirst > aSecond ? -1 : 1)
+            fetched.sort(([aFirst], [aSecond]) => (aFirst > aSecond ? -1 : 1))
           );
         }
       }
@@ -387,16 +432,3 @@ function getTextForSources(actors: any[]) {
     return deferred.promise;
   };
 }
-
-module.exports = {
-  newSource,
-  newSources,
-  selectSource,
-  selectSourceURL,
-  jumpToMappedLocation,
-  closeTab,
-  closeTabs,
-  togglePrettyPrint,
-  loadSourceText,
-  getTextForSources
-};

@@ -27,8 +27,7 @@ describe("source-search", () => {
     });
 
     it("counts whole word string match", () => {
-      const text =
-        "the test string with test in it multiple times whoatestthe.";
+      const text = "the test string test in it multiple times whoatestthe.";
       const query = "test";
       const count = countMatches(query, text, {
         caseSensitive: true,
@@ -39,15 +38,14 @@ describe("source-search", () => {
     });
 
     it("counts regex match", () => {
-      const text =
-        "the test string with test in it multiple times whoatestthe.";
+      const text = "the test string test in it multiple times whoatestthe.";
       const query = "(\\w+)\\s+(\\w+)";
       const count = countMatches(query, text, {
         caseSensitive: true,
         wholeWord: false,
         regexMatch: true
       });
-      expect(count).to.be(5);
+      expect(count).to.be(4);
     });
   });
 

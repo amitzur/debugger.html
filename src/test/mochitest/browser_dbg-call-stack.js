@@ -17,7 +17,7 @@ function toggleButton(dbg) {
   return callStackBody.querySelector(".show-more");
 }
 
-add_task(function* () {
+add_task(function*() {
   const dbg = yield initDebugger("doc-script-switching.html");
 
   toggleCallStack(dbg);
@@ -34,7 +34,7 @@ add_task(function* () {
   ok(!button, "toggle button shouldn't be there");
 });
 
-add_task(function* () {
+add_task(function*() {
   const dbg = yield initDebugger("doc-frames.html");
 
   toggleCallStack(dbg);
@@ -54,6 +54,6 @@ add_task(function* () {
 
   button = toggleButton(dbg);
   frames = findAllElements(dbg, "frames");
-  is(button.innerText, "Collapse Rows", "toggle button should be collapse");
+  is(button.innerText, "Collapse Rows", "toggle button should be collapsed");
   is(frames.length, 22, "All of the frames should be shown");
 });

@@ -1,16 +1,17 @@
 // @flow
-const { getOriginalLocation } = require("./source-map");
-
 import type { Pause, Frame } from "../types";
 
-function updateFrameLocations(frames: Frame[]): Promise<Frame[]> {
+export function updateFrameLocations(
+  frames: Frame[],
+  sourceMaps: any
+): Promise<Frame[]> {
   if (!frames || frames.length == 0) {
     return Promise.resolve(frames);
   }
 
   return Promise.all(
     frames.map(frame => {
-      return getOriginalLocation(frame.location).then(loc => {
+      return sourceMaps.getOriginalLocation(frame.location).then(loc => {
         return Object.assign(frame, {
           location: loc
         });
@@ -24,24 +25,24 @@ function updateFrameLocations(frames: Frame[]): Promise<Frame[]> {
 // "breakpointConditionThrown", "clientEvaluated"
 // "interrupted", "attached"
 const reasons = {
-  "debuggerStatement": "whyPaused.debuggerStatement",
-  "breakpoint": "whyPaused.breakpoint",
-  "exception": "whyPaused.exception",
-  "resumeLimit": "whyPaused.resumeLimit",
-  "pauseOnDOMEvents": "whyPaused.pauseOnDOMEvents",
-  "breakpointConditionThrown": "whyPaused.breakpointConditionThrown",
+  debuggerStatement: "whyPaused.debuggerStatement",
+  breakpoint: "whyPaused.breakpoint",
+  exception: "whyPaused.exception",
+  resumeLimit: "whyPaused.resumeLimit",
+  pauseOnDOMEvents: "whyPaused.pauseOnDOMEvents",
+  breakpointConditionThrown: "whyPaused.breakpointConditionThrown",
 
   // V8
-  "DOM": "whyPaused.breakpoint",
-  "EventListener": "whyPaused.pauseOnDOMEvents",
-  "XHR": "whyPaused.xhr",
-  "promiseRejection": "whyPaused.promiseRejection",
-  "assert": "whyPaused.assert",
-  "debugCommand": "whyPaused.debugCommand",
-  "other": "whyPaused.other"
+  DOM: "whyPaused.breakpoint",
+  EventListener: "whyPaused.pauseOnDOMEvents",
+  XHR: "whyPaused.xhr",
+  promiseRejection: "whyPaused.promiseRejection",
+  assert: "whyPaused.assert",
+  debugCommand: "whyPaused.debugCommand",
+  other: "whyPaused.other"
 };
 
-function getPauseReason(pauseInfo: Pause): string | null {
+export function getPauseReason(pauseInfo: Pause): string | null {
   if (!pauseInfo) {
     return null;
   }
@@ -52,8 +53,3 @@ function getPauseReason(pauseInfo: Pause): string | null {
   }
   return reasons[reasonType];
 }
-
-module.exports = {
-  updateFrameLocations,
-  getPauseReason
-};

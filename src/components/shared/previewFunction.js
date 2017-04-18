@@ -1,29 +1,25 @@
-import React from "react";
-const { DOM: dom } = React;
+import { DOM as dom } from "react";
 
-const times = require("lodash/times");
-const zip = require("lodash/zip");
-const flatten = require("lodash/flatten");
+import times from "lodash/times";
+import zip from "lodash/zip";
+import flatten from "lodash/flatten";
+
+require("./previewFunction.css");
 
 function renderFunctionName(value) {
   const name = value.userDisplayName || value.displayName || value.name || "";
-  return dom.span(
-    { className: "function-name" },
-    name
-  );
+  return dom.span({ className: "function-name" }, name);
 }
 
 function renderParams(value) {
-  const { parameterNames } = value;
-  let params = parameterNames.map(param => dom.span(
-    { className: "param" },
-    param
-  ));
+  const { parameterNames = [] } = value;
+  let params = parameterNames
+    .filter(i => i)
+    .map(param => dom.span({ className: "param" }, param));
 
-  const commas = times(params.length - 1).map(() => dom.span(
-    { className: "delimiter" },
-    ", "
-  ));
+  const commas = times(params.length - 1).map(() =>
+    dom.span({ className: "delimiter" }, ", ")
+  );
 
   return flatten(zip(params, commas));
 }
@@ -33,7 +29,7 @@ function renderParen(paren) {
 }
 
 function previewFunction(value) {
-  return dom.div(
+  return dom.span(
     { className: "function-signature" },
     renderFunctionName(value),
     renderParen("("),
@@ -42,4 +38,4 @@ function previewFunction(value) {
   );
 }
 
-module.exports = previewFunction;
+export default previewFunction;

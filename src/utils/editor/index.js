@@ -1,23 +1,16 @@
+const { isEnabled } = require("devtools-config");
 const { isPretty, isJavaScript } = require("../source");
-const { isOriginalId } = require("../source-map");
+const { isOriginalId } = require("devtools-source-map");
 const buildQuery = require("./build-query");
-const {
-  getDocument,
-  setDocument,
-  removeDocument,
-  clearDocuments
-} = require("./source-documents");
+const sourceDocumentUtils = require("./source-documents");
+const { getDocument } = sourceDocumentUtils;
 
-const {
-  countMatches,
-  find,
-  findNext,
-  findPrev,
-  removeOverlay,
-  clearIndex
-} = require("./source-search");
+import * as expressionUtils from "./expression.js";
 
-const SourceEditor = require("./source-editor");
+const sourceSearchUtils = require("./source-search");
+const { findNext, findPrev } = sourceSearchUtils;
+
+const { SourceEditor, SourceEditorUtils } = require("devtools-source-editor");
 
 function shouldShowPrettyPrint(selectedSource) {
   if (!selectedSource) {
@@ -37,42 +30,12 @@ function shouldShowPrettyPrint(selectedSource) {
   return true;
 }
 
-function onKeyDown(codeMirror, e) {
-  let { key, target } = e;
-  let codeWrapper = codeMirror.getWrapperElement();
-  let textArea = codeWrapper.querySelector("textArea");
-
-  if (key === "Escape" && target == textArea) {
-    e.stopPropagation();
-    e.preventDefault();
-    codeWrapper.focus();
-  } else if (key === "Enter" && target == codeWrapper) {
-    e.preventDefault();
-    // Focus into editor's text area
-    textArea.focus();
-  }
-}
-
 function shouldShowFooter(selectedSource, horizontal) {
   if (!horizontal) {
     return true;
   }
 
   return shouldShowPrettyPrint(selectedSource);
-}
-
-function forEachLine(codeMirror, iter) {
-  codeMirror.doc.iter(0, codeMirror.lineCount(), iter);
-}
-
-function removeLineClass(codeMirror, line, className) {
-  codeMirror.removeLineClass(line, "line", className);
-}
-
-function clearLineClass(codeMirror, className) {
-  forEachLine(codeMirror, line => {
-    removeLineClass(codeMirror, line, className);
-  });
 }
 
 function isTextForSource(sourceText) {
@@ -83,37 +46,6 @@ function breakpointAtLine(breakpoints, line) {
   return breakpoints.find(b => {
     return b.location.line === line + 1;
   });
-}
-
-function getTextForLine(codeMirror, line) {
-  return codeMirror.getLine(line - 1).trim();
-}
-
-function getCursorLine(codeMirror) {
-  return codeMirror.getCursor().line;
-}
-
-function getTokenLocation(tokenEl, codeMirror) {
-  const lineOffset = 1;
-  const { left, top } = tokenEl.getBoundingClientRect();
-  const { line, ch } = codeMirror.coordsChar({ left, top });
-
-  return {
-    line: line + lineOffset,
-    column: ch
-  };
-}
-/**
- * Forces the breakpoint gutter to be the same size as the line
- * numbers gutter. Editor CSS will absolutely position the gutter
- * beneath the line numbers. This makes it easy to be flexible with
- * how we overlay breakpoints.
- */
-function resizeBreakpointGutter(editor) {
-  const gutters = editor.display.gutters;
-  const lineNumbers = gutters.querySelector(".CodeMirror-linenumbers");
-  const breakpoints = gutters.querySelector(".breakpoints");
-  breakpoints.style.width = `${lineNumbers.clientWidth}px`;
 }
 
 function traverseResults(e, ctx, query, dir, modifiers) {
@@ -128,16 +60,22 @@ function traverseResults(e, ctx, query, dir, modifiers) {
 }
 
 function createEditor() {
+  const gutters = ["breakpoints", "hit-markers", "CodeMirror-linenumbers"];
+
+  if (isEnabled("codeFolding")) {
+    gutters.push("CodeMirror-foldgutter");
+  }
+
   return new SourceEditor({
     mode: "javascript",
+    foldGutter: isEnabled("codeFolding"),
     readOnly: true,
     lineNumbers: true,
     theme: "mozilla",
     lineWrapping: false,
     matchBrackets: true,
     showAnnotationRuler: true,
-    enableCodeFolding: false,
-    gutters: ["breakpoints", "hit-markers"],
+    gutters,
     value: " ",
     extraKeys: {
       // Override code mirror keymap to avoid conflicts with split console.
@@ -148,28 +86,30 @@ function createEditor() {
   });
 }
 
-module.exports = {
-  createEditor,
-  shouldShowPrettyPrint,
-  shouldShowFooter,
-  clearLineClass,
-  onKeyDown,
-  buildQuery,
-  getDocument,
-  setDocument,
-  removeDocument,
-  clearDocuments,
-  countMatches,
-  find,
-  findNext,
-  findPrev,
-  clearIndex,
-  removeOverlay,
-  isTextForSource,
-  breakpointAtLine,
-  getTextForLine,
-  getCursorLine,
-  getTokenLocation,
-  resizeBreakpointGutter,
-  traverseResults
-};
+function updateDocument(editor, selectedSource, sourceText) {
+  if (selectedSource) {
+    let sourceId = selectedSource.get("id");
+    const doc = getDocument(sourceId) || editor.createDocument();
+    editor.replaceDocument(doc);
+  } else if (sourceText) {
+    this.setText(sourceText.get("text"));
+  }
+}
+
+module.exports = Object.assign(
+  {},
+  expressionUtils,
+  sourceDocumentUtils,
+  sourceSearchUtils,
+  SourceEditorUtils,
+  {
+    createEditor,
+    shouldShowPrettyPrint,
+    shouldShowFooter,
+    buildQuery,
+    isTextForSource,
+    breakpointAtLine,
+    traverseResults,
+    updateDocument
+  }
+);

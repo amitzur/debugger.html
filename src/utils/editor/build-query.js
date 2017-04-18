@@ -42,10 +42,11 @@ function buildFlags(caseSensitive: boolean, isGlobal: boolean): ?RegExp$flags {
   return;
 }
 
-function buildQuery(originalQuery: string, modifiers: SearchModifiers, {
-  isGlobal = false,
-  ignoreSpaces = false
-}: QueryOptions): RegExp {
+function buildQuery(
+  originalQuery: string,
+  modifiers: SearchModifiers,
+  { isGlobal = false, ignoreSpaces = false }: QueryOptions
+): RegExp {
   const { caseSensitive, regexMatch, wholeWord } = modifiers;
 
   if (originalQuery == "") {

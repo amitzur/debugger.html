@@ -2,11 +2,11 @@
 .search-bar {
   display: flex;
   flex-direction: column;
-  max-height: 50%;
 }
 
 .search-bar .search-field {
   padding-left: 7px;
+  height: var(--editor-searchbar-height);
 }
 
 .search-bar .close-btn {
@@ -23,7 +23,7 @@
   flex-shrink: 0;
   justify-content: space-between;
   width: calc(100% - 1px);
-  height: 27px;
+  height: var(--editor-second-searchbar-height);
   background-color: var(--theme-toolbar-background);
   border-bottom: 1px solid var(--theme-splitter-color);
   padding: 0 13px;
@@ -66,6 +66,10 @@
   cursor: pointer;
 }
 
+.search-bottom-bar .search-modifiers button:hover {
+  background: var(--theme-toolbar-background-hover);
+}
+
 .search-bottom-bar .search-modifiers button:active {
   outline: none;
 }
@@ -80,6 +84,7 @@
 
 .search-bottom-bar .search-modifiers button.disabled svg {
   fill: var(--theme-comment-alt);
+  cursor: default;
 }
 
 .search-bottom-bar .search-type-toggles {

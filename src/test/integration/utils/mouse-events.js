@@ -1,18 +1,17 @@
-
-function triggerMouseEvent({type, props = {}, win, el}) {
+function triggerMouseEvent({ type, props = {}, win, el }) {
   let event = new win.Event(type, {
-    "view": win,
-    "bubbles": true,
-    "cancelable": true,
+    view: win,
+    bubbles: true,
+    cancelable: true
   });
 
   const rect = el.getBoundingClientRect();
   event = Object.assign(event, props, {
-    clientX: (rect.left + rect.right ) / 2,
+    clientX: (rect.left + rect.right) / 2,
     clientY: (rect.top + rect.bottom) / 2
-  })
+  });
 
-  el.dispatchEvent(event)
+  el.dispatchEvent(event);
 }
 
 function clickEl(win, el) {
@@ -52,8 +51,17 @@ function dblClickEl(win, el) {
   });
 }
 
+function mouseOverEl(win, el) {
+  triggerMouseEvent({
+    type: "mouseover",
+    win: win,
+    el
+  });
+}
+
 module.exports = {
   clickEl,
   rightClickEl,
-  dblClickEl
-}
+  dblClickEl,
+  mouseOverEl
+};

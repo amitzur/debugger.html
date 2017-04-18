@@ -11,9 +11,9 @@ function Debuggee() {
 
   function mouseEvent(eventType) {
     return new MouseEvent(eventType, {
-      "view": window,
-      "bubbles": true,
-      "cancelable": true
+      view: window,
+      bubbles: true,
+      cancelable: true
     });
   }
 

@@ -1,35 +1,38 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
-const { connect } = require("react-redux");
-const { bindActionCreators } = require("redux");
-const { isEnabled } = require("devtools-config");
-const Svg = require("../shared/Svg");
-const ImPropTypes = require("react-immutable-proptypes");
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
+import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
+import ImPropTypes from "react-immutable-proptypes";
 
-const { getPause, getBreakpoints,
-        getBreakpointsDisabled, getBreakpointsLoading
-      } = require("../../selectors");
-const { prefs } = require("../../utils/prefs");
+import actions from "../../actions";
+import {
+  getPause,
+  getBreakpoints,
+  getBreakpointsDisabled,
+  getBreakpointsLoading
+} from "../../selectors";
 
-const actions = require("../../actions");
+import { isEnabled } from "devtools-config";
+import Svg from "../shared/Svg";
+import { prefs } from "../../utils/prefs";
 
-const WhyPaused = React.createFactory(require("./WhyPaused").default);
-const Breakpoints = React.createFactory(require("./Breakpoints").default);
+const WhyPaused = createFactory(require("./WhyPaused").default);
+const Breakpoints = createFactory(require("./Breakpoints").default);
 
 import _Expressions from "./Expressions";
-const Expressions = React.createFactory(_Expressions);
+const Expressions = createFactory(_Expressions);
 
 const SplitBox = createFactory(require("devtools-modules").SplitBox);
 const Scopes = isEnabled("chromeScopes")
-  ? React.createFactory(require("./ChromeScopes").default)
-  : React.createFactory(require("./Scopes").default);
+  ? createFactory(require("./ChromeScopes").default)
+  : createFactory(require("./Scopes").default);
 
-const Frames = React.createFactory(require("./Frames").default);
-const EventListeners = React.createFactory(require("./EventListeners").default);
-const Accordion = React.createFactory(require("../shared/Accordion"));
-const CommandBar = React.createFactory(require("./CommandBar").default);
-require("./SecondaryPanes.css");
+const Frames = createFactory(require("./Frames").default);
+const EventListeners = createFactory(require("./EventListeners").default);
+const Accordion = createFactory(require("../shared/Accordion").default);
+const CommandBar = createFactory(require("./CommandBar").default);
+
+import "./SecondaryPanes.css";
 
 type SecondaryPanesItems = {
   header: string,
@@ -48,29 +51,17 @@ function debugBtn(onClick, type, className, tooltip) {
   );
 }
 
-const SecondaryPanes = React.createClass({
-  propTypes: {
-    evaluateExpressions: PropTypes.func.isRequired,
-    pauseData: ImPropTypes.map,
-    horizontal: PropTypes.bool,
-    breakpoints: ImPropTypes.map.isRequired,
-    breakpointsDisabled: PropTypes.bool,
-    breakpointsLoading: PropTypes.bool,
-    toggleAllBreakpoints: PropTypes.func.isRequired
-  },
-
-  contextTypes: {
-    shortcuts: PropTypes.object
-  },
-
-  displayName: "SecondaryPanes",
-
+class SecondaryPanes extends Component {
   renderBreakpointsToggle() {
-    const { toggleAllBreakpoints, breakpoints,
-            breakpointsDisabled, breakpointsLoading } = this.props;
+    const {
+      toggleAllBreakpoints,
+      breakpoints,
+      breakpointsDisabled,
+      breakpointsLoading
+    } = this.props;
     const boxClassName = "breakpoints-toggle";
-    const isIndeterminate = !breakpointsDisabled &&
-      breakpoints.some(x => x.disabled);
+    const isIndeterminate =
+      !breakpointsDisabled && breakpoints.some(x => x.disabled);
 
     if (breakpoints.size == 0) {
       return null;
@@ -78,21 +69,23 @@ const SecondaryPanes = React.createClass({
 
     return dom.input({
       type: "checkbox",
-      "aria-label": breakpointsDisabled ? L10N.getStr("breakpoints.enable") :
-        L10N.getStr("breakpoints.disable"),
+      "aria-label": breakpointsDisabled
+        ? L10N.getStr("breakpoints.enable")
+        : L10N.getStr("breakpoints.disable"),
       className: boxClassName,
       disabled: breakpointsLoading,
       onClick: () => toggleAllBreakpoints(!breakpointsDisabled),
       checked: !breakpointsDisabled && !isIndeterminate,
-      ref: (input) => {
+      ref: input => {
         if (input) {
           input.indeterminate = isIndeterminate;
         }
       },
-      title: breakpointsDisabled ? L10N.getStr("breakpoints.enable") :
-        L10N.getStr("breakpoints.disable")
+      title: breakpointsDisabled
+        ? L10N.getStr("breakpoints.enable")
+        : L10N.getStr("breakpoints.disable")
     });
-  },
+  }
 
   watchExpressionHeaderButtons() {
     return [
@@ -106,7 +99,7 @@ const SecondaryPanes = React.createClass({
         L10N.getStr("watchExpressions.refreshButton")
       )
     ];
-  },
+  }
 
   getScopeItem() {
     const isPaused = () => !!this.props.pauseData;
@@ -120,33 +113,39 @@ const SecondaryPanes = React.createClass({
       },
       shouldOpen: isPaused
     };
-  },
+  }
 
   getWatchItem() {
-    return { header: L10N.getStr("watchExpressions.header"),
+    return {
+      header: L10N.getStr("watchExpressions.header"),
       buttons: this.watchExpressionHeaderButtons(),
       component: Expressions,
       opened: true
     };
-  },
+  }
 
   getStartItems() {
-    const scopesContent: any = this.props.horizontal ?
-      this.getScopeItem() : null;
+    const scopesContent: any = this.props.horizontal
+      ? this.getScopeItem()
+      : null;
     const isPaused = () => !!this.props.pauseData;
 
     const items: Array<SecondaryPanesItems> = [
-      { header: L10N.getStr("breakpoints.header"),
+      {
+        header: L10N.getStr("breakpoints.header"),
         buttons: this.renderBreakpointsToggle(),
         component: Breakpoints,
-        opened: true },
-      { header: L10N.getStr("callStack.header"),
+        opened: true
+      },
+      {
+        header: L10N.getStr("callStack.header"),
         component: Frames,
         opened: prefs.callStackVisible,
         onToggle: opened => {
           prefs.callStackVisible = opened;
         },
-        shouldOpen: isPaused },
+        shouldOpen: isPaused
+      },
       scopesContent
     ];
 
@@ -162,13 +161,13 @@ const SecondaryPanes = React.createClass({
     }
 
     return items.filter(item => item);
-  },
+  }
 
   renderHorizontalLayout() {
     return Accordion({
       items: this.getItems()
     });
-  },
+  }
 
   getEndItems() {
     const items: Array<SecondaryPanesItems> = [];
@@ -182,11 +181,11 @@ const SecondaryPanes = React.createClass({
     }
 
     return items;
-  },
+  }
 
   getItems() {
     return [...this.getStartItems(), ...this.getEndItems()];
-  },
+  }
 
   renderVerticalLayout() {
     return SplitBox({
@@ -198,21 +197,40 @@ const SecondaryPanes = React.createClass({
       startPanel: Accordion({ items: this.getStartItems() }),
       endPanel: Accordion({ items: this.getEndItems() })
     });
-  },
+  }
 
   render() {
     return dom.div(
-      { className: "secondary-panes",
-        style: { overflowX: "hidden" }},
+      {
+        className: "secondary-panes",
+        style: { overflowX: "hidden" }
+      },
       CommandBar(),
       WhyPaused(),
-      this.props.horizontal ?
-        this.renderHorizontalLayout() : this.renderVerticalLayout()
+      this.props.horizontal
+        ? this.renderHorizontalLayout()
+        : this.renderVerticalLayout()
     );
   }
-});
+}
 
-module.exports = connect(
+SecondaryPanes.propTypes = {
+  evaluateExpressions: PropTypes.func.isRequired,
+  pauseData: ImPropTypes.map,
+  horizontal: PropTypes.bool,
+  breakpoints: ImPropTypes.map.isRequired,
+  breakpointsDisabled: PropTypes.bool,
+  breakpointsLoading: PropTypes.bool,
+  toggleAllBreakpoints: PropTypes.func.isRequired
+};
+
+SecondaryPanes.contextTypes = {
+  shortcuts: PropTypes.object
+};
+
+SecondaryPanes.displayName = "SecondaryPanes";
+
+export default connect(
   state => ({
     pauseData: getPause(state),
     breakpoints: getBreakpoints(state),

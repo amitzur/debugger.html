@@ -1,67 +1,73 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes, createFactory } = React;
-const { connect } = require("react-redux");
-const { bindActionCreators } = require("redux");
-const actions = require("../actions");
-const { getSources, getSelectedSource, getPaneCollapse } = require("../selectors");
 
-const { KeyShortcuts } = require("devtools-sham-modules");
+import { DOM as dom, PropTypes, Component, createFactory } from "react";
+import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
+import actions from "../actions";
+import { getSources, getSelectedSource, getPaneCollapse } from "../selectors";
+
+import { KeyShortcuts } from "devtools-modules";
 const shortcuts = new KeyShortcuts({ window });
 
 const verticalLayoutBreakpoint = window.matchMedia("(min-width: 800px)");
 
-require("./variables.css");
-require("./App.css");
-require("./shared/menu.css");
-require("./shared/SplitBox.css");
-require("./shared/reps.css");
-let { SplitBox } = require("devtools-modules");
-SplitBox = createFactory(SplitBox);
+import "./variables.css";
+import "./App.css";
+import "./shared/menu.css";
+import "./shared/reps.css";
 
-const SourceSearch = createFactory(require("./SourceSearch"));
-const Sources = createFactory(require("./Sources"));
-const Editor = createFactory(require("./Editor"));
-const SecondaryPanes = createFactory(require("./SecondaryPanes"));
-const WelcomeBox = createFactory(require("./WelcomeBox"));
+const SplitBox = createFactory(require("devtools-splitter"));
+const ProjectSearch = createFactory(require("./ProjectSearch").default);
+const Sources = createFactory(require("./Sources").default);
+const Editor = createFactory(require("./Editor").default);
+const SecondaryPanes = createFactory(require("./SecondaryPanes").default);
+const WelcomeBox = createFactory(require("./WelcomeBox").default);
 const EditorTabs = createFactory(require("./Editor/Tabs"));
 
-const App = React.createClass({
-  propTypes: {
-    sources: PropTypes.object,
-    selectSource: PropTypes.func,
-    selectedSource: PropTypes.object,
-    startPanelCollapsed: PropTypes.bool,
-    endPanelCollapsed: PropTypes.bool,
-  },
+class App extends Component {
+  state: {
+    horizontal: boolean,
+    startPanelSize: number,
+    endPanelSize: number
+  };
+  onLayoutChange: Function;
+  getChildContext: Function;
+  renderEditorPane: Function;
+  renderVerticalLayout: Function;
 
-  displayName: "App",
+  constructor(props) {
+    super(props);
+    this.state = {
+      horizontal: verticalLayoutBreakpoint.matches,
+      startPanelSize: 0,
+      endPanelSize: 0
+    };
+
+    this.getChildContext = this.getChildContext.bind(this);
+    this.onLayoutChange = this.onLayoutChange.bind(this);
+    this.renderEditorPane = this.renderEditorPane.bind(this);
+    this.renderVerticalLayout = this.renderVerticalLayout.bind(this);
+  }
 
   getChildContext() {
     return { shortcuts };
-  },
+  }
 
   componentDidMount() {
     verticalLayoutBreakpoint.addListener(this.onLayoutChange);
-  },
+  }
 
   componentWillUnmount() {
     verticalLayoutBreakpoint.removeListener(this.onLayoutChange);
-  },
-
-  getInitialState() {
-    return { horizontal: verticalLayoutBreakpoint.matches };
-  },
+  }
 
   onLayoutChange() {
-    this.setState({
-      horizontal: verticalLayoutBreakpoint.matches
-    });
-  },
+    this.setState({ horizontal: verticalLayoutBreakpoint.matches });
+  }
 
   renderEditorPane() {
     const { startPanelCollapsed, endPanelCollapsed } = this.props;
-    const { horizontal } = this.state;
+    const { horizontal, endPanelSize } = this.state;
     return dom.div(
       { className: "editor-pane" },
       dom.div(
@@ -69,14 +75,15 @@ const App = React.createClass({
         EditorTabs({
           startPanelCollapsed,
           endPanelCollapsed,
-          horizontal
+          horizontal,
+          endPanelSize
         }),
         Editor({ horizontal }),
         !this.props.selectedSource ? WelcomeBox({ horizontal }) : null,
-        SourceSearch()
+        ProjectSearch()
       )
     );
-  },
+  }
 
   renderHorizontalLayout() {
     const { sources, startPanelCollapsed, endPanelCollapsed } = this.props;
@@ -92,6 +99,7 @@ const App = React.createClass({
         minSize: 10,
         maxSize: "50%",
         splitterSize: 1,
+        onResizeEnd: size => this.setState({ startPanelSize: size }),
         startPanel: Sources({ sources, horizontal }),
         startPanelCollapsed,
         endPanel: SplitBox({
@@ -100,14 +108,16 @@ const App = React.createClass({
           minSize: 10,
           maxSize: "80%",
           splitterSize: 1,
+          onResizeEnd: size => this.setState({ endPanelSize: size }),
           endPanelControl: true,
           startPanel: this.renderEditorPane(),
           endPanel: SecondaryPanes({ horizontal }),
           endPanelCollapsed,
           vert: horizontal
-        }),
-      }));
-  },
+        })
+      })
+    );
+  }
 
   renderVerticalLayout() {
     const { sources, startPanelCollapsed, endPanelCollapsed } = this.props;
@@ -130,28 +140,39 @@ const App = React.createClass({
           splitterSize: 1,
           startPanelCollapsed,
           startPanel: Sources({ sources, horizontal }),
-          endPanel: this.renderEditorPane(),
+          endPanel: this.renderEditorPane()
         }),
         endPanel: SecondaryPanes({ horizontal }),
-        endPanelCollapsed,
-      }));
-  },
+        endPanelCollapsed
+      })
+    );
+  }
 
   render() {
-    return this.state.horizontal ?
-      this.renderHorizontalLayout() : this.renderVerticalLayout();
+    return this.state.horizontal
+      ? this.renderHorizontalLayout()
+      : this.renderVerticalLayout();
   }
-});
+}
 
-App.childContextTypes = {
-  shortcuts: PropTypes.object
+App.propTypes = {
+  sources: PropTypes.object,
+  selectSource: PropTypes.func,
+  selectedSource: PropTypes.object,
+  startPanelCollapsed: PropTypes.bool,
+  endPanelCollapsed: PropTypes.bool
 };
 
-module.exports = connect(
-  state => ({ sources: getSources(state),
+App.displayName = "App";
+
+App.childContextTypes = { shortcuts: PropTypes.object };
+
+export default connect(
+  state => ({
+    sources: getSources(state),
     selectedSource: getSelectedSource(state),
     startPanelCollapsed: getPaneCollapse(state, "start"),
-    endPanelCollapsed: getPaneCollapse(state, "end"),
+    endPanelCollapsed: getPaneCollapse(state, "end")
   }),
   dispatch => bindActionCreators(actions, dispatch)
 )(App);

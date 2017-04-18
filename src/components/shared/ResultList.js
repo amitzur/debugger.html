@@ -1,37 +1,30 @@
 // @flow
-const React = require("react");
-const { DOM: dom, PropTypes } = React;
-const classnames = require("classnames");
+import { DOM as dom, PropTypes, Component } from "react";
+import classnames from "classnames";
 
-require("./ResultList.css");
+import "./ResultList.css";
 
 type ResultListItem = {
-    id: string,
-    subtitle: string,
-    title: string,
-    value: string
+  id: string,
+  subtitle: string,
+  title: string,
+  value: string
 };
 
-const ResultList = React.createClass({
-  propTypes: {
-    items: PropTypes.array.isRequired,
-    selected: PropTypes.number.isRequired,
-    selectItem: PropTypes.func.isRequired,
-    size: PropTypes.string
-  },
+export default class ResultList extends Component {
+  displayName: "ResultList";
 
-  displayName: "ResultList",
+  static defaultProps: Object;
 
-  getDefaultProps() {
-    return {
-      size: ""
-    };
-  },
+  constructor(props: any) {
+    super(props);
+    (this: any).renderListItem = this.renderListItem.bind(this);
+  }
 
   renderListItem(item: ResultListItem, index: number) {
     return dom.li(
       {
-        onClick: () => this.props.selectItem(item),
+        onClick: event => this.props.selectItem(event, item, index),
         key: `${item.id}${item.value}${index}`,
         ref: index,
         title: item.value,
@@ -42,7 +35,7 @@ const ResultList = React.createClass({
       dom.div({ className: "title" }, item.title),
       dom.div({ className: "subtitle" }, item.subtitle)
     );
-  },
+  }
 
   render() {
     let { size } = this.props;
@@ -51,8 +44,18 @@ const ResultList = React.createClass({
       {
         className: `result-list ${size}`
       },
-    this.props.items.map(this.renderListItem));
+      this.props.items.map(this.renderListItem)
+    );
   }
-});
+}
 
-module.exports = ResultList;
+ResultList.propTypes = {
+  items: PropTypes.array.isRequired,
+  selected: PropTypes.number.isRequired,
+  selectItem: PropTypes.func.isRequired,
+  size: PropTypes.string
+};
+
+ResultList.defaultProps = {
+  size: ""
+};

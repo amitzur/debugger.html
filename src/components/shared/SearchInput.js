@@ -1,33 +1,18 @@
-const React = require("react");
-const { DOM: dom, PropTypes } = React;
-const classnames = require("classnames");
-const Svg = require("./Svg");
-const CloseButton = require("./Button/Close");
+import { DOM as dom, PropTypes, Component } from "react";
+import { isEnabled } from "devtools-config";
+import Svg from "./Svg";
+import classnames from "classnames";
+import CloseButton from "./Button/Close";
+import "./SearchInput.css";
 
-require("./SearchInput.css");
+class SearchInput extends Component {
+  displayName: "SearchInput";
 
-const SearchInput = React.createClass({
-  propTypes: {
-    query: PropTypes.string.isRequired,
-    count: PropTypes.number.isRequired,
-    placeholder: PropTypes.string.isRequired,
-    summaryMsg: PropTypes.string.isRequired,
-    onChange: PropTypes.func.isRequired,
-    handleClose: PropTypes.func.isRequired,
-    onKeyUp: PropTypes.func,
-    onKeyDown: PropTypes.func,
-    onFocus: PropTypes.func,
-    onBlur: PropTypes.func,
-    size: PropTypes.string
-  },
-
-  displayName: "SearchInput",
-
-  getDefaultProps() {
+  static get defaultProps() {
     return {
       size: ""
     };
-  },
+  }
 
   renderSvg() {
     const { count, query } = this.props;
@@ -37,7 +22,32 @@ const SearchInput = React.createClass({
     }
 
     return Svg("magnifying-glass");
-  },
+  }
+
+  renderNav() {
+    if (!isEnabled("searchNav")) {
+      return;
+    }
+
+    const { count, handleNext, handlePrev } = this.props;
+    if ((!handleNext && !handlePrev) || (!count || count == 1)) {
+      return;
+    }
+
+    return dom.div(
+      { className: "search-nav-buttons" },
+      Svg("arrow-down", {
+        className: classnames("nav-btn", "next"),
+        onClick: handleNext,
+        title: "Next Result"
+      }),
+      Svg("arrow-up", {
+        className: classnames("nav-btn", "prev"),
+        onClick: handlePrev,
+        title: "Previous Result"
+      })
+    );
+  }
 
   render() {
     const {
@@ -70,15 +80,32 @@ const SearchInput = React.createClass({
         onBlur,
         placeholder,
         value: query,
-        spellCheck: false,
+        spellCheck: false
       }),
       dom.div({ className: "summary" }, query != "" ? summaryMsg : ""),
+      this.renderNav(),
       CloseButton({
         handleClick: handleClose,
         buttonClass: size
       })
     );
   }
-});
+}
 
-module.exports = SearchInput;
+SearchInput.propTypes = {
+  query: PropTypes.string.isRequired,
+  count: PropTypes.number.isRequired,
+  placeholder: PropTypes.string.isRequired,
+  summaryMsg: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+  handleClose: PropTypes.func.isRequired,
+  onKeyUp: PropTypes.func,
+  onKeyDown: PropTypes.func,
+  onFocus: PropTypes.func,
+  onBlur: PropTypes.func,
+  size: PropTypes.string,
+  handleNext: PropTypes.func,
+  handlePrev: PropTypes.func
+};
+
+export default SearchInput;

@@ -11,7 +11,6 @@ import { getPauseReason } from "../../utils/pause";
 import "./WhyPaused.css";
 
 class WhyPaused extends Component {
-
   renderMessage(pauseInfo) {
     if (!pauseInfo) {
       return null;

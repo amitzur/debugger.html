@@ -20,7 +20,7 @@
  * }
  * ```
  */
-const NAME = exports.NAME = "@@service/waitUntil";
+const NAME = (exports.NAME = "@@service/waitUntil");
 
 import type { ThunkArgs } from "../../../actions/types";
 

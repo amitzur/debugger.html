@@ -6,6 +6,7 @@
   * [RTL](#rtl)
 * [Prefs](#prefs)
 * [SVGs](#svgs)
+* [ContextMenus](#context-menus)
 * [Flow](#flow)
 * [Logging](#logging)
 * [Testing](#testing)
@@ -17,6 +18,7 @@
 * [Colors](#colors)
 * [Configs](#configs)
 * [Hot Reloading](#hot-reloading-fire)
+* [Contributing to other packages](#contributing-to-other-packages)
 * [FAQ](#faq)
 * [Getting Help](#getting-help)
 
@@ -30,14 +32,7 @@ Light     | Dark      | Firebug
 
 #### Set a theme
 
-You can change the theme by setting the `theme` field in your `local.json` to  `light`, `dark`, or `firebug`. [Walkthrough GIF](http://g.recordit.co/nwBX4VBOBA.gif)
-
-`configs/local.json`
-```json
-{
-  "theme": "dark"
-}
-```
+You can change the theme by going to the Settings panel in the launchpad and changing the theme to either `firebug` or `dark`.
 
 #### Update a theme style
 
@@ -62,10 +57,7 @@ L10N.getStr("scopes.header")
 L10N.getFormatStr("editor.searchResults", index + 1, count)
 ```
 
-Translated strings are added to the local [strings][strings-json]
-file and m-c [debugger properties][debugger-properties] file. We plan on [removing][kill-strings] `strings.json` soon!
-
-Go checkout the [L10N issues][l10n-issues]
+Translated strings are added to the [debugger properties][debugger-properties] file.
 
 #### RTL
 
@@ -203,6 +195,66 @@ index 5996700..bb828d8 100644
 +}
 ```
 
+### Context Menus
+
+The Debugger can create its own [context menus][context-menus]. In the launchpad, it uses a [shimmed][shimmed-context-menus] context menu library. In Firefox, it has special permission to create native context menus.
+
+Here's a simple example:
+
+```js
+const { showMenu } = require("devtools-launchpad");
+
+function onClick(event) {
+  const copySourceUrlLabel = L10N.getStr("copySourceUrl");
+  const copySourceUrlKey = L10N.getStr("copySourceUrl.accesskey");
+
+  showMenu(event, [{
+    id: "node-menu-copy-source",
+    label: copySourceUrlLabel,
+    accesskey: copySourceUrlKey,
+    disabled: false,
+    click: () => copyToClipboad(url),
+    hidden: () => url.match(/chrome:\/\//)
+  }]);
+}
+```
+
+Notes:
+
+- `id` helps screen readers and accessibility
+- `label` menu item label shown
+- `accesskey` keyboard shortcut used
+- `disabled` inert item
+- `click` on click callback
+- `hidden` dynamically hide items
+
+#### Context Menu Groups
+
+You can use a menu item separator to create menu groups.
+
+```js
+const { showMenu } = require("devtools-launchpad");
+
+function onClick(event) {
+  const copySourceUrlLabel = L10N.getStr("copySourceUrl");
+  const copySourceUrlKey = L10N.getStr("copySourceUrl.accesskey");
+
+  const menuItem = {
+    id: "node-menu-copy-source",
+    label: copySourceUrlLabel,
+    accesskey: copySourceUrlKey,
+    disabled: false,
+    click: () => copyToClipboad(url),
+    hidden: () => url.match(/chrome:\/\//)
+  }
+
+  showMenu(event, [
+    menuItem,
+    { item: { type: "separator" } },
+  ]);
+}
+```
+
 ### Flow
 
 - [Adding flow to a file](./flow.md#adding-flow-to-a-file)
@@ -255,10 +307,48 @@ yarn run test-all
 
 #### Unit Tests
 
-* `yarn test` - Run headless tests
-  * These are the basic unit tests which must always pass
-* [http://localhost:8000/mocha](http://localhost:8000/mocha) - Run tests in the browser when you have `yarn start` running [gif](http://g.recordit.co/Go1GOu1Pli.gif))
+`yarn test` - Run tests with [jest].
 
+* [matchers][jest-matchers]
+* [mock functions][jest-mock]
+
+##### Testing Components
+
+There are two styles of component tests: interaction, snapshot.
+
+###### Interaction Testing
+
+We shallow render the component and simulate an UI interaction like `click`.
+
+```js
+it("should call handleClick function", () => {
+  const onClick = jest.genMockFunction();
+  const wrapper = shallow(new CloseButton({ handleClick: onClick }));
+
+  wrapper.simulate("click");
+  expect(onClick).toBeCalled();
+});
+```
+
+###### Snapshot Testing
+
+We shallow render the component to a JSON and save it to a fixture. Subsequent runs are compared to the fixture.
+
+```js
+it("should render a button", () => {
+  const onClick = jest.genMockFunction();
+  const buttonClass = "class";
+  const wrapper = shallow(
+    new CloseButton({
+      handleClick: onClick,
+      buttonClass: buttonClass,
+      tooltip: "Close button"
+    })
+  );
+
+  expect(wrapper).toMatchSnapshot();
+});
+```
 
 #### Integration Tests
 
@@ -436,6 +526,26 @@ index fdbdb4e..4759c14 100644
 
 * Restart your development server by typing <kbd>ctrl</kbd>+<kbd>c</kbd> in the Terminal and run `yarn start` again
 
+### Contributing to other packages
+
+The debugger depends on several other devtools packages. Sometimes a debugger feature will necessitate working on one of these other packages. In these cases, you'll need to get the project and work on it directly.
+
+| | |
+|:----:|:---:|
+|[Launchpad]|Development environment|
+|[Reps]|Variable formatter|
+|[Client Adapters]|Browser connection library|
+|[Modules]|Shared modules|
+|[Source Maps]|Library for working with source maps|
+
+#### Testing a change in the debugger
+
+There are three ways to test a change to a 3rd party package.
+
+1. [yarn link](https://yarnpkg.com/lang/en/docs/cli/link/)
+2. create a local version with **npm pack** and [yarn add](https://yarnpkg.com/lang/en/docs/cli/add/#toc-adding-dependencies)
+3. change the file directly in the debugger's `node_modules` directory.
+
 ### FAQ
 
 #### Why not JSX
@@ -493,6 +603,10 @@ your questions on [slack][slack].
 [l10n]:https://github.com/devtools-html/devtools-core/blob/master/packages/devtools-launchpad/src/utils/L10N.js
 [rtl-screenshot]:https://cloud.githubusercontent.com/assets/394320/19226865/ef18b0d0-8eb9-11e6-82b4-8c4da702fe91.png
 
+[jest]: https://facebook.github.io/jest/
+[jest-matchers]: https://facebook.github.io/jest/docs/using-matchers.html#content
+[jest-mock]: https://facebook.github.io/jest/docs/mock-functions.html#content
+
 [strings-json]: ../src/strings.json
 [debugger-properties]: ../assets/panel/debugger.properties
 [development-json]: ../configs/development.json
@@ -511,3 +625,12 @@ your questions on [slack][slack].
 [mochitest]: ./mochitests.md
 [mocha]: ./integration-tests.md
 [contrast-ratio-tool]: http://leaverou.github.io/contrast-ratio/#rgb%28204%2C%20209%2C%20213%29-on-rgb%28252%2C%20252%2C%20252%29
+
+[Launchpad]: https://github.com/devtools-html/devtools-core/tree/master/packages/devtools-launchpad
+[Reps]: https://github.com/devtools-html/reps
+[Client Adapters]: https://github.com/devtools-html/devtools-core/tree/master/packages/devtools-client-adapters
+[Modules]: https://github.com/devtools-html/devtools-core/tree/master/packages/devtools-modules
+[Source Maps]: https://github.com/devtools-html/devtools-core/tree/master/packages/devtools-source-map
+
+[shimmed-context-menus]: https://github.com/devtools-html/devtools-core/blob/master/packages/devtools-launchpad/src/menu.js
+[context-menus]: https://github.com/devtools-html/devtools-core/blob/master/packages/devtools-modules/client/framework/menu.js

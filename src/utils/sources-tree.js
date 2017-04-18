@@ -156,20 +156,25 @@ function isDirectory(url: Object) {
   const parts = url.path.split("/").filter(p => p !== "");
 
   // Assume that all urls point to files except when they end with '/'
-  return (parts.length === 0 || url.path.slice(-1) === "/");
+  // Or directory node has children
+  return (
+    parts.length === 0 || url.path.slice(-1) === "/" || nodeHasChildren(url)
+  );
 }
 
 /**
  * @memberof utils/sources-tree
  * @static
  */
-function addToTree(tree: any, source: TmpSource) {
+function addToTree(tree: any, source: TmpSource, debuggeeUrl: string) {
   const url = getURL(source.get("url"));
 
-  if (IGNORED_URLS.indexOf(url) != -1 ||
-      !source.get("url") ||
-      !url.group ||
-      isPretty(source.toJS())) {
+  if (
+    IGNORED_URLS.indexOf(url) != -1 ||
+    !source.get("url") ||
+    !url.group ||
+    isPretty(source.toJS())
+  ) {
     return;
   }
 
@@ -195,7 +200,12 @@ function addToTree(tree: any, source: TmpSource) {
     assert(nodeHasChildren(subtree), `${subtree.name} should have children`);
     const children = subtree.contents;
 
-    let index = determineFileSortOrder(children, part, isLastPart);
+    let index = determineFileSortOrder(
+      children,
+      part,
+      isLastPart,
+      i === 0 ? debuggeeUrl : ""
+    );
 
     if (index >= 0 && children[index].name === part) {
       // A node with the same name already exists, simply traverse
@@ -224,13 +234,30 @@ function addToTree(tree: any, source: TmpSource) {
 }
 
 /**
+ * @memberof utils/sources-tree
+ * @static
+ */
+function isExactUrlMatch(pathPart: string, debuggeeUrl: string) {
+  // compare to hostname with an optional 'www.' prefix
+  const { host } = parse(debuggeeUrl);
+  if (!host) {
+    return false;
+  }
+  return host.replace(/^www\./, "") === pathPart.replace(/^www\./, "");
+}
+
+/**
  * Look at the nodes in the source tree, and determine the index of where to
  * insert a new node. The ordering is index -> folder -> file.
  * @memberof utils/sources-tree
  * @static
  */
-function determineFileSortOrder(nodes:Array<Node>, pathPart:string,
-                                isLastPart:boolean) {
+function determineFileSortOrder(
+  nodes: Array<Node>,
+  pathPart: string,
+  isLastPart: boolean,
+  debuggeeUrl: string
+) {
   const partIsDir = !isLastPart || pathPart.indexOf(".") === -1;
 
   return nodes.findIndex(node => {
@@ -240,6 +267,21 @@ function determineFileSortOrder(nodes:Array<Node>, pathPart:string,
     // after it.
     if (node.name === "(index)") {
       return false;
+    }
+
+    // Directory or not, checking root url must be done first
+    if (debuggeeUrl) {
+      const rootUrlMatch = isExactUrlMatch(pathPart, debuggeeUrl);
+      const nodeUrlMatch = isExactUrlMatch(node.name, debuggeeUrl);
+      if (rootUrlMatch) {
+        // pathPart matches root url and must go first
+        return true;
+      }
+      if (nodeUrlMatch) {
+        // Examined item matches root url and must go first
+        return false;
+      }
+      // If neither is the case, continue to compare alphabetically
     }
 
     // If both the pathPart and node are the same type, then compare them
@@ -270,12 +312,16 @@ function collapseTree(node: any, depth: number = 0) {
       if (nodeHasChildren(next)) {
         return collapseTree(
           createNode(`${node.name}/${next.name}`, next.path, next.contents),
-          depth + 1);
+          depth + 1
+        );
       }
     }
     // Map the contents.
-    return createNode(node.name, node.path,
-                      node.contents.map(next => collapseTree(next, depth + 1)));
+    return createNode(
+      node.name,
+      node.path,
+      node.contents.map(next => collapseTree(next, depth + 1))
+    );
   }
   // Node is a leaf, not a folder, do not modify it.
   return node;
@@ -285,17 +331,19 @@ function collapseTree(node: any, depth: number = 0) {
  * @memberof utils/sources-tree
  * @static
  */
-function createTree(sources: any) {
+function createTree(sources: any, debuggeeUrl: string) {
   const uncollapsedTree = createNode("root", "", []);
   for (let source of sources.valueSeq()) {
-    addToTree(uncollapsedTree, source);
+    addToTree(uncollapsedTree, source, debuggeeUrl);
   }
   const sourceTree = collapseTree(uncollapsedTree);
 
-  return { uncollapsedTree,
+  return {
+    uncollapsedTree,
     sourceTree,
     parentMap: createParentMap(sourceTree),
-    focusedItem: null };
+    focusedItem: null
+  };
 }
 
 function findSource(sourceTree: any, sourceUrl: string) {
@@ -305,8 +353,9 @@ function findSource(sourceTree: any, sourceUrl: string) {
       for (let child of subtree.contents) {
         _traverse(child);
       }
-    } else if (!returnTarget &&
-      subtree.path.replace(/http(s)?:\//, "") == sourceUrl) {
+    } else if (
+      !returnTarget && subtree.path.replace(/http(s)?:\//, "") == sourceUrl
+    ) {
       returnTarget = subtree;
       return;
     }
@@ -347,5 +396,6 @@ module.exports = {
   collapseTree,
   createTree,
   getDirectories,
-  getURL
+  getURL,
+  isExactUrlMatch
 };
