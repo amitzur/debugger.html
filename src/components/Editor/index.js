@@ -51,7 +51,8 @@ import {
   previewExpression,
   getExpressionValue,
   resizeBreakpointGutter,
-  traverseResults
+  traverseResults,
+  getTokenLocation
 } from "../../utils/editor";
 import { getVisibleVariablesFromScope } from "../../utils/scopes";
 import { isFirefox } from "devtools-config";
@@ -283,6 +284,14 @@ class Editor extends Component {
     this.previewSelectedToken(e);
   }
 
+  onMouseDown(e) {
+    if (!e.altKey) {
+      return;
+    }
+
+    this.addColumnBreakpoint(e.target);
+  }
+
   onSearchAgain(_, e) {
     const { query, searchModifiers } = this.props;
     const { editor: { codeMirror } } = this.editor;
@@ -497,6 +506,39 @@ class Editor extends Component {
         { getTextForLine: l => getTextForLine(this.editor.codeMirror, l) }
       );
     }
+  }
+
+  addColumnBreakpoint(token) {
+    const { line, column } = getTokenLocation(this.editor.codeMirror, token);
+
+    const {
+      addBreakpoint,
+      selectedSource,
+      selectedLocation: { sourceId }
+    } = this.props;
+    addBreakpoint({
+      sourceId,
+      sourceUrl: selectedSource.get("url"),
+      line,
+      column
+    });
+  }
+
+  removeColumnBreakpoint(el) {
+    const {
+      addBreakpoint,
+      selectedSource,
+      selectedLocation: { sourceId }
+    } = this.props;
+
+    const line = el.attrs.line;
+    const column = el.attrs.column;
+
+    removeBreakpoint({
+      sourceId: sourceId,
+      line,
+      column
+    });
   }
 
   toggleBreakpointDisabledStatus(line) {

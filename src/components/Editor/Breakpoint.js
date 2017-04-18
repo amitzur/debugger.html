@@ -31,11 +31,29 @@ class Breakpoint extends Component {
     const bp = this.props.breakpoint;
     const line = bp.location.line - 1;
 
+    if (bp.location.column) {
+      this.createColumnBP();
+    }
+    {
+      this.createBP();
+    }
+  }
+
+  createColumnBP() {
+    const widget = document.createElement("span");
+    widget.innerText = "+";
+    widget.classList.add("inline-bp");
+
+    return doc.setBookmark({ line: 38, ch: 13 }, { widget });
+  }
+
+  createBP() {
     this.props.editor.setGutterMarker(
       line,
       "breakpoints",
       makeMarker(bp.disabled)
     );
+
     this.props.editor.addLineClass(line, "line", "new-breakpoint");
     if (bp.condition) {
       this.props.editor.addLineClass(line, "line", "has-condition");
@@ -43,6 +61,7 @@ class Breakpoint extends Component {
       this.props.editor.removeLineClass(line, "line", "has-condition");
     }
   }
+
   shouldComponentUpdate(nextProps: any) {
     return (
       this.props.editor !== nextProps.editor ||
