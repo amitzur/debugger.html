@@ -19,6 +19,18 @@ function makeMarker(isDisabled: boolean) {
   return bp;
 }
 
+const columnBreakpointSvg = document.createElement("div");
+ReactDOM.render(Svg("column-breakpoint"), columnBreakpointSvg);
+
+function makeColumnMarker(isDisabled: boolean) {
+  const bp = columnBreakpointSvg.cloneNode(true);
+  bp.className = classnames("editor column-breakpoint", {
+    "breakpoint-disabled": isDisabled
+  });
+
+  return bp;
+}
+
 class Breakpoint extends Component {
   addBreakpoint: Function;
 
@@ -32,21 +44,19 @@ class Breakpoint extends Component {
     const line = bp.location.line - 1;
 
     if (bp.location.column) {
-      this.createColumnBP(line, bp.location.column);
+      this.createColumnBP(bp, line, bp.location.column);
     } else {
       this.createBP(bp, line);
     }
   }
 
-  createColumnBP(line, ch) {
-    const widget = document.createElement("span");
-    widget.innerText = "+";
-    widget.classList.add("inline-bp");
+  createColumnBP(bp, line: number, ch: number) {
+    const widget = makeColumnMarker(bp.disabled);
 
     return this.props.editor.setBookmark({ line, ch }, { widget });
   }
 
-  createBP(bp, line) {
+  createBP(bp, line: number) {
     this.props.editor.setGutterMarker(
       line,
       "breakpoints",
